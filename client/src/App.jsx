@@ -19,6 +19,9 @@ import Register from "./pages/Register";
 import EmployeeDashboard from "./pages/employee/EmployeeDashboard";
 import HRDashboard from "./pages/hr/HRDashboard";
 
+import Attendance from "./pages/employee/Attendance";
+import Leave from "./pages/employee/Leave";
+
 const App = () => {
   return (
     <BrowserRouter>
