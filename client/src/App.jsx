@@ -68,7 +68,7 @@ const App = () => {
                     ]}
                   />
                 }
-              >
+              />
                 <Route
                   index
                   element={
