@@ -6,6 +6,9 @@ const rateLimit = require("express-rate-limit");
 const authRoutes = require("./routes/authRoutes");
 const attendanceRoutes = require("./routes/attendanceRoutes");
 
+const leaveRoutes = require("./routes/leaveRoutes");
+const hrRoutes = require("./routes/hrRoutes");
+
 const app = express();
 
 app.use(helmet());
@@ -45,6 +48,16 @@ app.use(
 app.use(
   "/api/attendance",
   attendanceRoutes
+);
+
+app.use(
+  "/api/leaves",
+  leaveRoutes
+);
+
+app.use(
+  "/api/hr",
+  hrRoutes
 );
 
 app.use((req, res) => {
