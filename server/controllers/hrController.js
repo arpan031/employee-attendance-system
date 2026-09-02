@@ -15,72 +15,50 @@ const getDashboard = async (
   next
 ) => {
   try {
-    const today =
-      getLocalDateKey(new Date());
+    const today = getLocalDateKey(
+      new Date()
+    );
 
     const [
       totalEmployees,
-      activeEmployees,
-      pendingLeaves,
-      todayAttendance
+      presentToday,
+      lateToday,
+      pendingLeaves
     ] = await Promise.all([
-      Employee.countDocuments(),
-
       Employee.countDocuments({
-        isActive: true
+        role: "employee"
+      }),
+
+      Attendance.countDocuments({
+        date: today,
+        status: {
+          $in: [
+            "Present",
+            "Late",
+            "Half Day"
+          ]
+        }
+      }),
+
+      Attendance.countDocuments({
+        date: today,
+        status: "Late"
       }),
 
       Leave.countDocuments({
         status: "Pending"
-      }),
-
-      Attendance.aggregate([
-        {
-          $match: {
-            date: today
-          }
-        },
-
-        {
-          $group: {
-            _id: "$status",
-            count: {
-              $sum: 1
-            }
-          }
-        }
-      ])
+      })
     ]);
-
-    const attendanceSummary = {
-      Present: 0,
-      Late: 0,
-      "Half Day": 0,
-      Leave: 0,
-      Absent: 0
-    };
-
-    todayAttendance.forEach(
-      (item) => {
-        attendanceSummary[
-          item._id
-        ] = item.count;
-      }
-    );
 
     return res.status(200).json({
       success: true,
-      date: today,
 
-      employees: {
-        total: totalEmployees,
-        active: activeEmployees
-      },
-
-      pendingLeaves,
-
-      attendance:
-        attendanceSummary
+      dashboard: {
+        totalEmployees,
+        presentToday,
+        lateToday,
+        pendingLeaves
+      }
     });
   } catch (error) {
     next(error);
@@ -97,33 +75,42 @@ const getAnalytics = async (
   try {
     const now = new Date();
 
+    const timezone =
+      process.env.APP_TIMEZONE ||
+      "Asia/Kolkata";
+
+    const dateFormatter =
+      new Intl.DateTimeFormat(
+        "en-US",
+        {
+          timeZone: timezone,
+          year: "numeric",
+          month: "numeric"
+        }
+      );
+
+    const parts =
+      dateFormatter.formatToParts(now);
+
+    const currentYear = Number(
+      parts.find(
+        (part) => part.type === "year"
+      )?.value
+    );
+
+    const currentMonth = Number(
+      parts.find(
+        (part) => part.type === "month"
+      )?.value
+    );
+
     const year =
       Number(req.query.year) ||
-      Number(
-        new Intl.DateTimeFormat(
-          "en-US",
-          {
-            timeZone:
-              process.env.APP_TIMEZONE ||
-              "Asia/Kolkata",
-            year: "numeric"
-          }
-        ).format(now)
-      );
+      currentYear;
 
     const month =
       Number(req.query.month) ||
-      Number(
-        new Intl.DateTimeFormat(
-          "en-US",
-          {
-            timeZone:
-              process.env.APP_TIMEZONE ||
-              "Asia/Kolkata",
-            month: "numeric"
-          }
-        ).format(now)
-      );
+      currentMonth;
 
     const {
       startDate,
@@ -150,12 +137,15 @@ const getAnalytics = async (
               date: "$date",
               status: "$status"
             },
+
             count: {
               $sum: 1
             },
+
             workingMinutes: {
               $sum: "$workingMinutes"
             },
+
             overtimeMinutes: {
               $sum: "$overtimeMinutes"
             }
@@ -169,43 +159,91 @@ const getAnalytics = async (
         }
       ]);
 
-    const daily = {};
+    const dailyMap = {};
+
+    const summary = {
+      present: 0,
+      late: 0,
+      absent: 0,
+      leave: 0,
+      halfDay: 0
+    };
 
     analytics.forEach((item) => {
       const date =
         item._id.date;
 
-      if (!daily[date]) {
-        daily[date] = {
+      if (!dailyMap[date]) {
+        dailyMap[date] = {
+          _id: date,
           date,
-          Present: 0,
-          Late: 0,
-          "Half Day": 0,
-          Leave: 0,
-          Absent: 0,
+          present: 0,
+          late: 0,
+          absent: 0,
+          leave: 0,
+          halfDay: 0,
           workingMinutes: 0,
           overtimeMinutes: 0
         };
       }
 
-      daily[date][
-        item._id.status
-      ] = item.count;
+      const count =
+        item.count || 0;
 
-      daily[date].workingMinutes +=
+      switch (item._id.status) {
+        case "Present":
+          dailyMap[date].present += count;
+          summary.present += count;
+          break;
+
+        case "Late":
+          dailyMap[date].late += count;
+          summary.late += count;
+          break;
+
+        case "Absent":
+          dailyMap[date].absent += count;
+          summary.absent += count;
+          break;
+
+        case "Leave":
+          dailyMap[date].leave += count;
+          summary.leave += count;
+          break;
+
+        case "Half Day":
+          dailyMap[date].halfDay += count;
+          summary.halfDay += count;
+          break;
+
+        default:
+          break;
+      }
+
+      dailyMap[date].workingMinutes +=
         item.workingMinutes || 0;
 
-      daily[date].overtimeMinutes +=
+      dailyMap[date].overtimeMinutes +=
         item.overtimeMinutes || 0;
     });
 
+    const daily =
+      Object.values(dailyMap).sort(
+        (a, b) =>
+          a.date.localeCompare(b.date)
+      );
+
     return res.status(200).json({
       success: true,
-      year,
-      month,
-      analytics: Object.values(
+
+      analytics: {
+        year,
+        month,
+
+        summary,
+
         daily
-      )
+      }
     });
   } catch (error) {
     next(error);
