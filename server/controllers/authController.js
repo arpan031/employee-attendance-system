@@ -1,8 +1,26 @@
 const bcrypt = require("bcryptjs");
+
 const Employee = require("../models/Employee");
 const generateToken = require("../utils/generateToken");
 
-const register = async (req, res) => {
+/* Public Employee Data */
+
+const getPublicEmployee = (employee) => ({
+  id: employee._id,
+  name: employee.name,
+  email: employee.email,
+  employeeId: employee.employeeId,
+  department: employee.department,
+  designation: employee.designation,
+  role: employee.role,
+  joiningDate: employee.joiningDate,
+  leaveBalance: employee.leaveBalance,
+  isActive: employee.isActive
+});
+
+/* Register */
+
+const register = async (req, res, next) => {
   try {
     const {
       name,
@@ -10,136 +28,140 @@ const register = async (req, res) => {
       password,
       employeeId,
       department,
-      designation,
+      designation
     } = req.body;
 
-    if (
-      !name ||
-      !email ||
-      !password ||
-      !employeeId ||
-      !department ||
-      !designation
-    ) {
-      return res.status(400).json({
-        message: "All fields are required",
-      });
-    }
+    const normalizedEmail =
+      email.toLowerCase().trim();
 
-    const existingEmployee = await Employee.findOne({
-      $or: [
-        { email: email.toLowerCase() },
-        { employeeId },
-      ],
-    });
+    const normalizedEmployeeId =
+      employeeId.toUpperCase().trim();
+
+    const existingEmployee =
+      await Employee.findOne({
+        $or: [
+          { email: normalizedEmail },
+          {
+            employeeId:
+              normalizedEmployeeId
+          }
+        ]
+      });
 
     if (existingEmployee) {
       return res.status(409).json({
+        success: false,
         message:
-          "Email or employee ID already exists",
+          existingEmployee.email ===
+          normalizedEmail
+            ? "Email is already registered"
+            : "Employee ID is already registered"
       });
     }
 
-    const hashedPassword = await bcrypt.hash(
-      password,
-      12
+    const hashedPassword =
+      await bcrypt.hash(password, 12);
+
+    const employee =
+      await Employee.create({
+        name: name.trim(),
+        email: normalizedEmail,
+        password: hashedPassword,
+        employeeId: normalizedEmployeeId,
+        department: department.trim(),
+        designation: designation.trim(),
+        role: "employee"
+      });
+
+    const token = generateToken(
+      employee._id.toString()
     );
 
-    const employee = await Employee.create({
-      name,
-      email,
-      password: hashedPassword,
-      employeeId,
-      department,
-      designation,
-    });
-
-    const token = generateToken(employee);
-
-    res.status(201).json({
-      message: "Registration successful",
-
+    return res.status(201).json({
+      success: true,
+      message:
+        "Employee registered successfully",
       token,
-
-      employee: {
-        id: employee._id,
-        name: employee.name,
-        email: employee.email,
-        employeeId: employee.employeeId,
-        department: employee.department,
-        designation: employee.designation,
-        role: employee.role,
-        leaveBalance: employee.leaveBalance,
-      },
+      employee:
+        getPublicEmployee(employee)
     });
   } catch (error) {
-    console.error(error);
-
-    res.status(500).json({
-      message: "Registration failed",
-    });
+    next(error);
   }
 };
 
-const login = async (req, res) => {
+/* Login */
+
+const login = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const {
+      email,
+      password
+    } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({
-        message: "Email and password are required",
-      });
-    }
+    const employee =
+      await Employee.findOne({
+        email: email.toLowerCase().trim()
+      }).select("+password");
 
-    const employee = await Employee.findOne({
-      email: email.toLowerCase(),
-    });
-
-    if (!employee || !employee.isActive) {
+    if (!employee) {
       return res.status(401).json({
-        message: "Invalid credentials",
+        success: false,
+        message:
+          "Invalid email or password"
       });
     }
 
-    const passwordMatched = await bcrypt.compare(
-      password,
-      employee.password
+    if (!employee.isActive) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Your employee account is inactive"
+      });
+    }
+
+    const passwordMatches =
+      await bcrypt.compare(
+        password,
+        employee.password
+      );
+
+    if (!passwordMatches) {
+      return res.status(401).json({
+        success: false,
+        message:
+          "Invalid email or password"
+      });
+    }
+
+    const token = generateToken(
+      employee._id.toString()
     );
 
-    if (!passwordMatched) {
-      return res.status(401).json({
-        message: "Invalid credentials",
-      });
-    }
-
-    const token = generateToken(employee);
-
-    res.json({
+    return res.status(200).json({
+      success: true,
       message: "Login successful",
-
       token,
-
-      employee: {
-        id: employee._id,
-        name: employee.name,
-        email: employee.email,
-        employeeId: employee.employeeId,
-        department: employee.department,
-        designation: employee.designation,
-        role: employee.role,
-        leaveBalance: employee.leaveBalance,
-      },
+      employee:
+        getPublicEmployee(employee)
     });
   } catch (error) {
-    console.error(error);
-
-    res.status(500).json({
-      message: "Login failed",
-    });
+    next(error);
   }
+};
+
+/* Current User */
+
+const getMe = async (req, res) => {
+  return res.status(200).json({
+    success: true,
+    employee:
+      getPublicEmployee(req.employee)
+  });
 };
 
 module.exports = {
   register,
   login,
+  getMe
 };
