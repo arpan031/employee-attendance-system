@@ -1,20 +1,31 @@
 const express = require("express");
 
-const protect = require("../middleware/authMiddleware");
-
 const {
   checkIn,
   checkOut,
   getTodayAttendance,
-  getMyAttendance,
+  getMyAttendance
 } = require("../controllers/attendanceController");
+
+const protect = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
+/* All attendance routes require authentication */
+
 router.use(protect);
 
-router.post("/check-in", checkIn);
-router.post("/check-out", checkOut);
+/* Employee Attendance */
+
+router.post(
+  "/check-in",
+  checkIn
+);
+
+router.post(
+  "/check-out",
+  checkOut
+);
 
 router.get(
   "/today",
