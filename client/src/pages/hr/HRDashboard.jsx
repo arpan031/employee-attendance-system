@@ -1,208 +1,258 @@
+import { useEffect, useState } from "react";
 import {
-  useEffect,
-  useState,
-} from "react";
-
-import {
-  Users,
-  UserCheck,
-  UserX,
+  CalendarCheck,
   Clock3,
-  CalendarDays,
-  ClipboardList,
+  FileText,
+  Users
 } from "lucide-react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis
+} from "recharts";
 
 import api from "../../services/api";
 import StatCard from "../../components/StatCard";
 
-const HRDashboard = () => {
-  const [data, setData] =
+const HRDashboard = ({ analyticsOnly = false }) => {
+  const [dashboard, setDashboard] =
     useState(null);
 
-  const [loading, setLoading] =
-    useState(true);
+  const [analytics, setAnalytics] =
+    useState(null);
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      if (analyticsOnly) {
+        const response = await api.get(
+          "/hr/analytics"
+        );
+
+        setAnalytics(response.data.analytics);
+      } else {
+        const [dashboardResponse, analyticsResponse] =
+          await Promise.all([
+            api.get("/hr/dashboard"),
+            api.get("/hr/analytics")
+          ]);
+
+        setDashboard(
+          dashboardResponse.data.dashboard
+        );
+
+        setAnalytics(
+          analyticsResponse.data.analytics
+        );
+      }
+    } catch (err) {
+      setError(
+        err.response?.data?.message ||
+          "Unable to load HR dashboard."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const loadDashboard =
-      async () => {
-        try {
-          const response =
-            await api.get(
-              "/hr/dashboard"
-            );
-
-          setData(
-            response.data
-          );
-        } catch (error) {
-          console.error(error);
-        } finally {
-          setLoading(false);
-        }
-      };
-
-    loadDashboard();
-  }, []);
+    loadData();
+  }, [analyticsOnly]);
 
   if (loading) {
     return (
-      <div className="empty-state">
-        Loading dashboard...
+      <div className="page-loader">
+        <div className="spinner" />
+        <p>Loading HR data...</p>
       </div>
     );
   }
 
-  const stats =
-    data?.statistics || {};
+  if (error) {
+    return (
+      <div className="page-container">
+        <div className="alert alert-error">
+          {error}
+        </div>
+      </div>
+    );
+  }
+
+  const chartData =
+    analytics?.daily?.map((item) => ({
+      date: item._id,
+      present: item.present || 0,
+      late: item.late || 0,
+      absent: item.absent || 0,
+      leave: item.leave || 0
+    })) || [];
 
   return (
-    <div>
-      <div className="page-heading">
+    <div className="page-container">
+      <div className="page-header">
         <div>
-          <h1>
-            HR Dashboard
-          </h1>
+          <h2>
+            {analyticsOnly
+              ? "Attendance Analytics"
+              : "HR Dashboard"}
+          </h2>
 
           <p>
-            Monitor workforce
-            attendance and leave.
+            {analyticsOnly
+              ? "Analyze employee attendance trends."
+              : "Monitor workforce attendance and leave activity."}
           </p>
         </div>
       </div>
 
-      <div className="stats-grid">
-        <StatCard
-          title="Total Employees"
-          value={
-            stats.totalEmployees ||
-            0
-          }
-          icon={Users}
-          description="Active employees"
-        />
+      {!analyticsOnly && dashboard && (
+        <div className="stats-grid">
+          <StatCard
+            title="Total Employees"
+            value={dashboard.totalEmployees}
+            subtitle="Active workforce"
+            icon={Users}
+            variant="blue"
+          />
 
-        <StatCard
-          title="Present Today"
-          value={
-            stats.presentToday ||
-            0
-          }
-          icon={UserCheck}
-          description="On time"
-        />
+          <StatCard
+            title="Present Today"
+            value={dashboard.presentToday}
+            subtitle="Employees checked in"
+            icon={CalendarCheck}
+            variant="green"
+          />
 
-        <StatCard
-          title="Absent Today"
-          value={
-            stats.absentToday ||
-            0
-          }
-          icon={UserX}
-          description="Not recorded"
-        />
+          <StatCard
+            title="Late Today"
+            value={dashboard.lateToday}
+            subtitle="Late arrivals"
+            icon={Clock3}
+            variant="orange"
+          />
 
-        <StatCard
-          title="Late Today"
-          value={
-            stats.lateToday ||
-            0
-          }
-          icon={Clock3}
-          description="Late arrivals"
-        />
+          <StatCard
+            title="Pending Leaves"
+            value={dashboard.pendingLeaves}
+            subtitle="Awaiting approval"
+            icon={FileText}
+            variant="purple"
+          />
+        </div>
+      )}
 
-        <StatCard
-          title="On Leave"
-          value={
-            stats.leaveToday ||
-            0
-          }
-          icon={CalendarDays}
-          description="Today"
-        />
-
-        <StatCard
-          title="Pending Leaves"
-          value={
-            stats.pendingLeaves ||
-            0
-          }
-          icon={ClipboardList}
-          description="Need approval"
-        />
-      </div>
-
-      <div className="panel">
-        <div className="panel-header">
+      <section className="card">
+        <div className="card-header">
           <div>
-            <h2>
-              Today's Overview
-            </h2>
-
+            <h3>Attendance Overview</h3>
             <p>
-              Attendance summary for{" "}
-              {data?.date}
+              Current month's attendance
+              distribution
             </p>
           </div>
         </div>
 
-        <div className="overview-grid">
-          <div className="overview-item">
-            <span>
-              Present
-            </span>
+        <div className="analytics-chart">
+          {chartData.length === 0 ? (
+            <div className="empty-state">
+              No analytics data available.
+            </div>
+          ) : (
+            <ResponsiveContainer
+              width="100%"
+              height={350}
+            >
+              <BarChart data={chartData}>
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                />
 
-            <strong>
-              {stats.presentToday ||
-                0}
-            </strong>
-          </div>
+                <XAxis dataKey="date" />
 
-          <div className="overview-item">
-            <span>
-              Absent
-            </span>
+                <YAxis allowDecimals={false} />
 
-            <strong>
-              {stats.absentToday ||
-                0}
-            </strong>
-          </div>
+                <Tooltip />
 
-          <div className="overview-item">
-            <span>
-              Late
-            </span>
+                <Legend />
 
-            <strong>
-              {stats.lateToday ||
-                0}
-            </strong>
-          </div>
+                <Bar
+                  dataKey="present"
+                  name="Present"
+                />
 
-          <div className="overview-item">
-            <span>
-              Leave
-            </span>
+                <Bar
+                  dataKey="late"
+                  name="Late"
+                />
 
-            <strong>
-              {stats.leaveToday ||
-                0}
-            </strong>
-          </div>
+                <Bar
+                  dataKey="absent"
+                  name="Absent"
+                />
 
-          <div className="overview-item">
-            <span>
-              Half Day
-            </span>
-
-            <strong>
-              {stats.halfDayToday ||
-                0}
-            </strong>
-          </div>
+                <Bar
+                  dataKey="leave"
+                  name="Leave"
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </div>
-      </div>
+      </section>
+
+      {analytics && (
+        <section className="card">
+          <div className="card-header">
+            <div>
+              <h3>Monthly Summary</h3>
+              <p>
+                Attendance statistics for the
+                current month.
+              </p>
+            </div>
+          </div>
+
+          <div className="summary-strip">
+            <div>
+              <span>Present</span>
+              <strong>
+                {analytics.summary?.present || 0}
+              </strong>
+            </div>
+
+            <div>
+              <span>Late</span>
+              <strong>
+                {analytics.summary?.late || 0}
+              </strong>
+            </div>
+
+            <div>
+              <span>Absent</span>
+              <strong>
+                {analytics.summary?.absent || 0}
+              </strong>
+            </div>
+
+            <div>
+              <span>Leave</span>
+              <strong>
+                {analytics.summary?.leave || 0}
+              </strong>
+            </div>
+          </div>
+        </section>
+      )}
     </div>
   );
 };
