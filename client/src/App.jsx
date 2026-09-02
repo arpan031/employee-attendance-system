@@ -64,37 +64,33 @@ const App = () => {
               }
             />
               <Route
-  path="/hr"
-  element={
-    <ProtectedRoute
-      allowedRoles={["hr"]}
-    />
-  }
->
-  <Route
-    index
-    element={<HRDashboard />}
-  />
-
-  <Route
-    path="employees"
-    element={<Employees />}
-  />
-
-  <Route
-    path="attendance"
-    element={
-      <AttendanceManagement />
-    }
-  />
-
-  <Route
-    path="leaves"
-    element={
-      <LeaveRequests />
-    }
-  />
-</Route>
+                path="/hr"
+                element={
+                  <ProtectedRoute
+                    allowedRoles={["hr"]}
+                    />}
+                >
+                <Route
+                  index
+                  element={<HRDashboard />}
+                  />
+                <Route
+                  path="employees"
+                  element={<Employees />}
+                  />
+                <Route
+                  path="attendance"
+                  element={
+                    <AttendanceManagement />
+                    }
+                  />
+                <Route
+                  path="leaves"
+                  element={
+                    <LeaveRequests />
+                    }
+                  />
+                </Route>
 
           <Route
             path="/"
