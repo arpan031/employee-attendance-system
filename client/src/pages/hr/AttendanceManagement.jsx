@@ -1,306 +1,226 @@
-
 import { useEffect, useState } from "react";
-import {
-  Search,
-  RefreshCw,
-} from "lucide-react";
+import { Search } from "lucide-react";
 
 import api from "../../services/api";
+import Pagination from "../../components/Pagination";
 
 const AttendanceManagement = () => {
-  const [attendance, setAttendance] =
+  const [records, setRecords] =
     useState([]);
 
-  const [search, setSearch] =
-    useState("");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
 
-  const [date, setDate] =
-    useState("");
+  const [pagination, setPagination] =
+    useState({
+      pages: 1,
+      total: 0
+    });
 
-  const [status, setStatus] =
-    useState("All");
-
-  const [loading, setLoading] =
-    useState(true);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   const loadAttendance = async () => {
-    setLoading(true);
-
     try {
-      const response =
-        await api.get(
-          "/hr/attendance"
-        );
+      setLoading(true);
+      setError("");
 
-      setAttendance(
-        response.data.attendance
+      const response = await api.get(
+        "/hr/attendance",
+        {
+          params: {
+            page,
+            limit: 10,
+            search
+          }
+        }
       );
-    } catch (error) {
-      console.error(error);
+
+      setRecords(
+        response.data.attendance || []
+      );
+
+      setPagination(
+        response.data.pagination || {
+          pages: 1,
+          total: 0
+        }
+      );
+    } catch (err) {
+      setError(
+        err.response?.data?.message ||
+          "Unable to load attendance."
+      );
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadAttendance();
-  }, []);
-
-  const formatMinutes = (
-    minutes = 0
-  ) => {
-    const hours = Math.floor(
-      minutes / 60
+    const timer = setTimeout(
+      loadAttendance,
+      350
     );
 
+    return () => clearTimeout(timer);
+  }, [page, search]);
+
+  const formatTime = (value) => {
+    if (!value) return "-";
+
+    return new Date(value).toLocaleTimeString(
+      "en-IN",
+      {
+        hour: "2-digit",
+        minute: "2-digit"
+      }
+    );
+  };
+
+  const formatMinutes = (minutes = 0) => {
+    const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
 
     return `${hours}h ${mins}m`;
   };
 
-  const filteredAttendance =
-    attendance.filter((item) => {
-      const employee =
-        item.employeeId;
-
-      const searchValue =
-        search.toLowerCase();
-
-      const matchesSearch =
-        employee?.name
-          ?.toLowerCase()
-          .includes(searchValue) ||
-        employee?.employeeId
-          ?.toLowerCase()
-          .includes(searchValue) ||
-        employee?.department
-          ?.toLowerCase()
-          .includes(searchValue);
-
-      const matchesDate =
-        !date ||
-        item.date === date;
-
-      const matchesStatus =
-        status === "All" ||
-        item.status === status;
-
-      return (
-        matchesSearch &&
-        matchesDate &&
-        matchesStatus
-      );
-    });
-
   return (
-    <div>
-      <div className="page-heading">
+    <div className="page-container">
+      <div className="page-header">
         <div>
-          <h1>
-            Attendance Management
-          </h1>
-
+          <h2>Attendance Management</h2>
           <p>
-            Monitor employee attendance
-            and working hours.
+            Monitor employee attendance records.
           </p>
         </div>
-
-        <button
-          className="secondary-button refresh-button"
-          onClick={loadAttendance}
-        >
-          <RefreshCw size={17} />
-          Refresh
-        </button>
       </div>
 
-      <div className="panel">
-        <div className="filters">
+      {error && (
+        <div className="alert alert-error">
+          {error}
+        </div>
+      )}
+
+      <section className="card">
+        <div className="toolbar">
           <div className="search-box">
             <Search size={18} />
 
             <input
-              placeholder="Search employee..."
+              type="search"
+              placeholder="Search by employee..."
               value={search}
-              onChange={(e) =>
-                setSearch(
-                  e.target.value
-                )
-              }
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
             />
           </div>
 
-          <input
-            type="date"
-            value={date}
-            onChange={(e) =>
-              setDate(
-                e.target.value
-              )
-            }
-          />
-
-          <select
-            value={status}
-            onChange={(e) =>
-              setStatus(
-                e.target.value
-              )
-            }
-          >
-            <option value="All">
-              All Status
-            </option>
-
-            <option value="Present">
-              Present
-            </option>
-
-            <option value="Late">
-              Late
-            </option>
-
-            <option value="Half Day">
-              Half Day
-            </option>
-
-            <option value="Leave">
-              Leave
-            </option>
-          </select>
+          <span className="result-count">
+            {pagination.total} records
+          </span>
         </div>
-      </div>
 
-      <div className="panel">
         {loading ? (
+          <div className="table-loader">
+            <div className="spinner" />
+          </div>
+        ) : records.length === 0 ? (
           <div className="empty-state">
-            Loading attendance...
+            No attendance records found.
           </div>
         ) : (
-          <div className="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Employee</th>
-                  <th>Date</th>
-                  <th>Check In</th>
-                  <th>Check Out</th>
-                  <th>Working Hours</th>
-                  <th>Overtime</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
+          <>
+            <div className="table-wrapper">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Employee</th>
+                    <th>Date</th>
+                    <th>Check In</th>
+                    <th>Check Out</th>
+                    <th>Working</th>
+                    <th>Overtime</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
 
-              <tbody>
-                {filteredAttendance.map(
-                  (item) => (
-                    <tr
-                      key={item._id}
-                    >
+                <tbody>
+                  {records.map((record) => (
+                    <tr key={record._id}>
                       <td>
                         <div className="employee-cell">
-                          <div className="table-avatar">
-                            {item.employeeId?.name
-                              ?.charAt(
-                                0
-                              )
+                          <div className="avatar">
+                            {record.employeeId?.name
+                              ?.charAt(0)
                               .toUpperCase()}
                           </div>
 
                           <div>
                             <strong>
-                              {
-                                item
-                                  .employeeId
-                                  ?.name
-                              }
+                              {record.employeeId?.name}
                             </strong>
 
-                            <small>
+                            <span>
                               {
-                                item
-                                  .employeeId
+                                record.employeeId
                                   ?.employeeId
                               }
-                            </small>
+                            </span>
                           </div>
                         </div>
                       </td>
 
+                      <td>{record.date}</td>
+
                       <td>
-                        {item.date}
+                        {formatTime(
+                          record.checkIn
+                        )}
                       </td>
 
                       <td>
-                        {item.checkIn
-                          ? new Date(
-                              item.checkIn
-                            ).toLocaleTimeString(
-                              [],
-                              {
-                                hour: "2-digit",
-                                minute:
-                                  "2-digit",
-                              }
-                            )
-                          : "--"}
-                      </td>
-
-                      <td>
-                        {item.checkOut
-                          ? new Date(
-                              item.checkOut
-                            ).toLocaleTimeString(
-                              [],
-                              {
-                                hour: "2-digit",
-                                minute:
-                                  "2-digit",
-                              }
-                            )
-                          : "--"}
-                      </td>
-
-                      <td>
-                        {formatMinutes(
-                          item.workingMinutes
+                        {formatTime(
+                          record.checkOut
                         )}
                       </td>
 
                       <td>
                         {formatMinutes(
-                          item.overtimeMinutes
+                          record.workingMinutes
+                        )}
+                      </td>
+
+                      <td>
+                        {formatMinutes(
+                          record.overtimeMinutes
                         )}
                       </td>
 
                       <td>
                         <span
-                          className={`status-badge ${item.status
-                            ?.toLowerCase()
-                            .replace(
-                              " ",
-                              "-"
-                            )}`}
+                          className={`status-badge status-${record.status
+                            .toLowerCase()
+                            .replace(" ", "-")}`}
                         >
-                          {item.status}
+                          {record.status}
                         </span>
                       </td>
                     </tr>
-                  )
-                )}
-              </tbody>
-            </table>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-            {!filteredAttendance.length && (
-              <div className="empty-state">
-                No attendance records
-                match your filters.
-              </div>
-            )}
-          </div>
+            <Pagination
+              page={page}
+              pages={pagination.pages}
+              onPageChange={setPage}
+            />
+          </>
         )}
-      </div>
+      </section>
     </div>
   );
 };
