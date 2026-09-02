@@ -1,171 +1,247 @@
 const Attendance = require("../models/Attendance");
 
 const {
-  calculateWorkingMinutes,
-  calculateStatus,
-  calculateOvertime,
+  getLocalDateKey
+} = require("../utils/dateUtils");
+
+const {
+  calculateAttendance
 } = require("../services/attendanceService");
 
-const getToday = () => {
-  const now = new Date();
+/* Check In */
 
-  return now.toISOString().split("T")[0];
-};
-
-const checkIn = async (req, res) => {
+const checkIn = async (
+  req,
+  res,
+  next
+) => {
   try {
-    const employeeId = req.employee._id;
-    const date = getToday();
-
-    let attendance = await Attendance.findOne({
-      employeeId,
-      date,
-    });
-
-    if (attendance?.checkIn) {
-      return res.status(400).json({
-        message: "Already checked in today",
-      });
-    }
+    const employeeId =
+      req.employee._id;
 
     const now = new Date();
 
-    if (!attendance) {
-      attendance = await Attendance.create({
-        employeeId,
-        date,
-        checkIn: now,
-        status: calculateStatus(now),
-      });
-    } else {
-      attendance.checkIn = now;
-      attendance.status =
-        calculateStatus(now);
+    const date =
+      getLocalDateKey(now);
 
-      await attendance.save();
+    const existing =
+      await Attendance.findOne({
+        employeeId,
+        date
+      });
+
+    if (existing?.checkIn) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "You have already checked in today"
+      });
     }
 
-    res.json({
+    const calculation =
+      calculateAttendance({
+        checkIn: now,
+        checkOut: null
+      });
+
+    const attendance =
+      await Attendance.findOneAndUpdate(
+        {
+          employeeId,
+          date
+        },
+        {
+          $set: {
+            checkIn: now,
+            status:
+              calculation.status
+          }
+        },
+        {
+          new: true,
+          upsert: true,
+          runValidators: true,
+          setDefaultsOnInsert: true
+        }
+      );
+
+    return res.status(200).json({
+      success: true,
       message: "Check-in successful",
-      attendance,
+      attendance
     });
   } catch (error) {
-    console.error(error);
-
-    res.status(500).json({
-      message: "Check-in failed",
-    });
+    next(error);
   }
 };
 
-const checkOut = async (req, res) => {
-  try {
-    const employeeId = req.employee._id;
-    const date = getToday();
+/* Check Out */
 
-    const attendance = await Attendance.findOne({
-      employeeId,
-      date,
-    });
+const checkOut = async (
+  req,
+  res,
+  next
+) => {
+  try {
+    const employeeId =
+      req.employee._id;
+
+    const now = new Date();
+
+    const date =
+      getLocalDateKey(now);
+
+    const attendance =
+      await Attendance.findOne({
+        employeeId,
+        date
+      });
 
     if (!attendance) {
       return res.status(400).json({
+        success: false,
         message:
-          "You must check in before checking out",
+          "Please check in before checking out"
       });
     }
 
     if (!attendance.checkIn) {
       return res.status(400).json({
+        success: false,
         message:
-          "You must check in before checking out",
+          "Please check in before checking out"
       });
     }
 
     if (attendance.checkOut) {
-      return res.status(400).json({
-        message: "Already checked out today",
+      return res.status(409).json({
+        success: false,
+        message:
+          "You have already checked out today"
       });
     }
 
-    const now = new Date();
-
-    const workingMinutes =
-      calculateWorkingMinutes(
-        attendance.checkIn,
-        now
-      );
+    const calculation =
+      calculateAttendance({
+        checkIn:
+          attendance.checkIn,
+        checkOut: now
+      });
 
     attendance.checkOut = now;
     attendance.workingMinutes =
-      workingMinutes;
-
+      calculation.workingMinutes;
     attendance.overtimeMinutes =
-      calculateOvertime(workingMinutes);
-
-    if (workingMinutes < 240) {
-      attendance.status = "Half Day";
-    }
+      calculation.overtimeMinutes;
+    attendance.status =
+      calculation.status;
 
     await attendance.save();
 
-    res.json({
+    return res.status(200).json({
+      success: true,
       message: "Check-out successful",
-      attendance,
+      attendance
     });
   } catch (error) {
-    console.error(error);
-
-    res.status(500).json({
-      message: "Check-out failed",
-    });
+    next(error);
   }
 };
 
+/* Today's Attendance */
+
 const getTodayAttendance = async (
   req,
-  res
+  res,
+  next
 ) => {
   try {
-    const date = getToday();
+    const date =
+      getLocalDateKey(new Date());
 
     const attendance =
       await Attendance.findOne({
         employeeId: req.employee._id,
-        date,
+        date
       });
 
-    res.json({
-      attendance,
+    return res.status(200).json({
+      success: true,
+      date,
+      attendance
     });
   } catch (error) {
-    res.status(500).json({
-      message:
-        "Unable to fetch attendance",
-    });
+    next(error);
   }
 };
 
+/* Employee Attendance */
+
 const getMyAttendance = async (
   req,
-  res
+  res,
+  next
 ) => {
   try {
-    const attendance =
-      await Attendance.find({
-        employeeId: req.employee._id,
-      }).sort({
-        date: -1,
-      });
+    const page = Math.max(
+      Number(req.query.page) || 1,
+      1
+    );
 
-    res.json({
+    const limit = Math.min(
+      Math.max(
+        Number(req.query.limit) || 10,
+        1
+      ),
+      100
+    );
+
+    const skip =
+      (page - 1) * limit;
+
+    const filter = {
+      employeeId:
+        req.employee._id
+    };
+
+    if (req.query.status) {
+      filter.status =
+        req.query.status;
+    }
+
+    if (req.query.date) {
+      filter.date =
+        req.query.date;
+    }
+
+    const [
       attendance,
+      total
+    ] = await Promise.all([
+      Attendance.find(filter)
+        .sort({
+          date: -1
+        })
+        .skip(skip)
+        .limit(limit),
+
+      Attendance.countDocuments(filter)
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      attendance,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(
+          total / limit
+        )
+      }
     });
   } catch (error) {
-    res.status(500).json({
-      message:
-        "Unable to fetch attendance",
-    });
+    next(error);
   }
 };
 
@@ -173,5 +249,5 @@ module.exports = {
   checkIn,
   checkOut,
   getTodayAttendance,
-  getMyAttendance,
+  getMyAttendance
 };
