@@ -1,392 +1,300 @@
 import { useEffect, useState } from "react";
-
 import {
-  Clock3,
   CalendarCheck,
-  CalendarDays,
-  Timer,
+  Clock3,
+  FileText,
+  Timer
 } from "lucide-react";
 
 import api from "../../services/api";
 import StatCard from "../../components/StatCard";
 import { useAuth } from "../../context/AuthContext";
 
-const EmployeeDashboard =
-  () => {
-    const {
-      employee,
-    } = useAuth();
+const formatMinutes = (minutes = 0) => {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
 
-    const [attendance, setAttendance] =
-      useState(null);
+  return `${hours}h ${mins}m`;
+};
 
-    const [
-      attendanceHistory,
-      setAttendanceHistory,
-    ] = useState([]);
+const formatDate = (date) => {
+  if (!date) return "-";
 
-    const [
-      loading,
-      setLoading,
-    ] = useState(true);
+  return new Intl.DateTimeFormat("en-IN", {
+    dateStyle: "medium"
+  }).format(new Date(date));
+};
 
-    const loadAttendance =
-      async () => {
-        try {
-          const [
-            todayResponse,
-            historyResponse,
-          ] = await Promise.all([
-            api.get(
-              "/attendance/today"
-            ),
-            api.get(
-              "/attendance/my"
-            ),
-          ]);
+const EmployeeDashboard = () => {
+  const { employee, refreshUser } = useAuth();
 
-          setAttendance(
-            todayResponse.data
-              .attendance
-          );
+  const [attendance, setAttendance] = useState(null);
+  const [leaves, setLeaves] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-          setAttendanceHistory(
-            historyResponse.data
-              .attendance
-          );
-        } catch (error) {
-          console.error(error);
-        } finally {
-          setLoading(false);
-        }
-      };
+  const loadDashboard = async () => {
+    try {
+      setLoading(true);
+      setError("");
 
-    useEffect(() => {
-      loadAttendance();
-    }, []);
+      const [attendanceResponse, leaveResponse] =
+        await Promise.all([
+          api.get("/attendance/today"),
+          api.get("/leaves/my")
+        ]);
 
-    const formatMinutes = (
-      minutes
-    ) => {
-      if (!minutes) {
-        return "0h 0m";
-      }
+      setAttendance(
+        attendanceResponse.data.attendance
+      );
 
-      const hours =
-        Math.floor(
-          minutes / 60
-        );
+      setLeaves(
+        leaveResponse.data.leaves || []
+      );
 
-      const mins =
-        minutes % 60;
+      await refreshUser();
+    } catch (err) {
+      setError(
+        err.response?.data?.message ||
+          "Unable to load dashboard."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      return `${hours}h ${mins}m`;
-    };
+  useEffect(() => {
+    loadDashboard();
+  }, []);
 
-    const presentCount =
-      attendanceHistory.filter(
-        (item) =>
-          item.status ===
-          "Present"
-      ).length;
-
-    const lateCount =
-      attendanceHistory.filter(
-        (item) =>
-          item.status === "Late"
-      ).length;
-
+  if (loading) {
     return (
-      <div>
-        <div className="page-heading">
-          <div>
-            <h1>
-              Employee Dashboard
-            </h1>
+      <div className="page-loader">
+        <div className="spinner" />
+        <p>Loading dashboard...</p>
+      </div>
+    );
+  }
 
+  const approvedLeaves = leaves.filter(
+    (leave) => leave.status === "Approved"
+  );
+
+  const pendingLeaves = leaves.filter(
+    (leave) => leave.status === "Pending"
+  );
+
+  return (
+    <div className="page-container">
+      <div className="page-header">
+        <div>
+          <h2>Good to see you, {employee?.name}</h2>
+          <p>
+            Here's an overview of your attendance
+            and leave information.
+          </p>
+        </div>
+      </div>
+
+      {error && (
+        <div className="alert alert-error">
+          {error}
+        </div>
+      )}
+
+      <div className="stats-grid">
+        <StatCard
+          title="Today's Status"
+          value={attendance?.status || "Absent"}
+          subtitle={
+            attendance?.checkIn
+              ? "Attendance recorded"
+              : "No check-in yet"
+          }
+          icon={CalendarCheck}
+          variant="blue"
+        />
+
+        <StatCard
+          title="Working Time"
+          value={formatMinutes(
+            attendance?.workingMinutes
+          )}
+          subtitle={
+            attendance?.checkOut
+              ? "Completed today"
+              : "Currently working"
+          }
+          icon={Clock3}
+          variant="green"
+        />
+
+        <StatCard
+          title="Overtime"
+          value={formatMinutes(
+            attendance?.overtimeMinutes
+          )}
+          subtitle="Today's overtime"
+          icon={Timer}
+          variant="purple"
+        />
+
+        <StatCard
+          title="Leave Balance"
+          value={`${employee?.leaveBalance ?? 0} days`}
+          subtitle={`${pendingLeaves.length} pending request${
+            pendingLeaves.length === 1 ? "" : "s"
+          }`}
+          icon={FileText}
+          variant="orange"
+        />
+      </div>
+
+      <div className="content-grid">
+        <section className="card">
+          <div className="card-header">
+            <div>
+              <h3>Today's Attendance</h3>
+              <p>
+                {formatDate(attendance?.createdAt)}
+              </p>
+            </div>
+
+            <span
+              className={`status-badge status-${(
+                attendance?.status || "Absent"
+              )
+                .toLowerCase()
+                .replace(" ", "-")}`}
+            >
+              {attendance?.status || "Absent"}
+            </span>
+          </div>
+
+          <div className="attendance-summary">
+            <div>
+              <span>Check In</span>
+              <strong>
+                {attendance?.checkIn
+                  ? new Date(
+                      attendance.checkIn
+                    ).toLocaleTimeString("en-IN", {
+                      hour: "2-digit",
+                      minute: "2-digit"
+                    })
+                  : "--:--"}
+              </strong>
+            </div>
+
+            <div>
+              <span>Check Out</span>
+              <strong>
+                {attendance?.checkOut
+                  ? new Date(
+                      attendance.checkOut
+                    ).toLocaleTimeString("en-IN", {
+                      hour: "2-digit",
+                      minute: "2-digit"
+                    })
+                  : "--:--"}
+              </strong>
+            </div>
+
+            <div>
+              <span>Working Hours</span>
+              <strong>
+                {formatMinutes(
+                  attendance?.workingMinutes
+                )}
+              </strong>
+            </div>
+          </div>
+        </section>
+
+        <section className="card">
+          <div className="card-header">
+            <div>
+              <h3>Recent Leave Requests</h3>
+              <p>Your latest leave applications</p>
+            </div>
+          </div>
+
+          {leaves.length === 0 ? (
+            <div className="empty-state">
+              No leave requests found.
+            </div>
+          ) : (
+            <div className="mini-list">
+              {leaves.slice(0, 5).map((leave) => (
+                <div
+                  className="mini-list-item"
+                  key={leave._id}
+                >
+                  <div>
+                    <strong>
+                      {leave.leaveType}
+                    </strong>
+
+                    <span>
+                      {formatDate(leave.startDate)}{" "}
+                      -{" "}
+                      {formatDate(leave.endDate)}
+                    </span>
+                  </div>
+
+                  <span
+                    className={`status-badge status-${leave.status.toLowerCase()}`}
+                  >
+                    {leave.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+
+      <section className="card">
+        <div className="card-header">
+          <div>
+            <h3>Leave Summary</h3>
             <p>
-              Track your attendance
-              and working hours.
+              Approved leave days:
+              {" "}
+              {approvedLeaves.reduce(
+                (sum, leave) =>
+                  sum + leave.totalDays,
+                0
+              )}
             </p>
           </div>
         </div>
 
-        <div className="stats-grid">
-          <StatCard
-            title="Present Days"
-            value={presentCount}
-            icon={CalendarCheck}
-            description="Total recorded"
-          />
-
-          <StatCard
-            title="Late Days"
-            value={lateCount}
-            icon={Clock3}
-            description="This month"
-          />
-
-          <StatCard
-            title="Leave Balance"
-            value={`${employee?.leaveBalance ?? 0} days`}
-            icon={CalendarDays}
-            description="Available leave"
-          />
-
-          <StatCard
-            title="Today's Hours"
-            value={formatMinutes(
-              attendance?.workingMinutes
-            )}
-            icon={Timer}
-            description={
-              attendance
-                ?.status ||
-              "Not checked in"
-            }
-          />
-        </div>
-
-        <div className="dashboard-grid">
-          <div className="panel">
-            <div className="panel-header">
-              <div>
-                <h2>
-                  Today's Attendance
-                </h2>
-
-                <p>
-                  {new Date().toLocaleDateString(
-                    "en-IN",
-                    {
-                      dateStyle:
-                        "full",
-                    }
-                  )}
-                </p>
-              </div>
-
-              <span
-                className={`status-badge ${
-                  attendance?.status
-                    ?.toLowerCase()
-                    .replace(
-                      " ",
-                      "-"
-                    ) ||
-                  "pending"
-                }`}
-              >
-                {attendance?.status ||
-                  "Not Started"}
-              </span>
-            </div>
-
-            {loading ? (
-              <div className="empty-state">
-                Loading...
-              </div>
-            ) : (
-              <div className="attendance-summary">
-                <div>
-                  <span>
-                    Check In
-                  </span>
-
-                  <strong>
-                    {attendance?.checkIn
-                      ? new Date(
-                          attendance.checkIn
-                        ).toLocaleTimeString(
-                          [],
-                          {
-                            hour:
-                              "2-digit",
-                            minute:
-                              "2-digit",
-                          }
-                        )
-                      : "--:--"}
-                  </strong>
-                </div>
-
-                <div>
-                  <span>
-                    Check Out
-                  </span>
-
-                  <strong>
-                    {attendance?.checkOut
-                      ? new Date(
-                          attendance.checkOut
-                        ).toLocaleTimeString(
-                          [],
-                          {
-                            hour:
-                              "2-digit",
-                            minute:
-                              "2-digit",
-                          }
-                        )
-                      : "--:--"}
-                  </strong>
-                </div>
-
-                <div>
-                  <span>
-                    Working Hours
-                  </span>
-
-                  <strong>
-                    {formatMinutes(
-                      attendance?.workingMinutes
-                    )}
-                  </strong>
-                </div>
-              </div>
-            )}
+        <div className="summary-strip">
+          <div>
+            <span>Available Balance</span>
+            <strong>
+              {employee?.leaveBalance ?? 0} days
+            </strong>
           </div>
 
-          <div className="panel">
-            <div className="panel-header">
-              <div>
-                <h2>
-                  Employee Information
-                </h2>
-              </div>
-            </div>
+          <div>
+            <span>Approved Requests</span>
+            <strong>
+              {approvedLeaves.length}
+            </strong>
+          </div>
 
-            <div className="info-list">
-              <div>
-                <span>
-                  Employee ID
-                </span>
-                <strong>
-                  {employee?.employeeId}
-                </strong>
-              </div>
-
-              <div>
-                <span>
-                  Department
-                </span>
-                <strong>
-                  {employee?.department}
-                </strong>
-              </div>
-
-              <div>
-                <span>
-                  Designation
-                </span>
-                <strong>
-                  {employee?.designation}
-                </strong>
-              </div>
-
-              <div>
-                <span>Email</span>
-                <strong>
-                  {employee?.email}
-                </strong>
-              </div>
-            </div>
+          <div>
+            <span>Pending Requests</span>
+            <strong>
+              {pendingLeaves.length}
+            </strong>
           </div>
         </div>
-
-        <div className="panel">
-          <div className="panel-header">
-            <div>
-              <h2>
-                Recent Attendance
-              </h2>
-
-              <p>
-                Your latest attendance
-                records
-              </p>
-            </div>
-          </div>
-
-          <div className="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Check In</th>
-                  <th>Check Out</th>
-                  <th>Hours</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {attendanceHistory
-                  .slice(0, 7)
-                  .map((item) => (
-                    <tr
-                      key={item._id}
-                    >
-                      <td>
-                        {item.date}
-                      </td>
-
-                      <td>
-                        {item.checkIn
-                          ? new Date(
-                              item.checkIn
-                            ).toLocaleTimeString(
-                              [],
-                              {
-                                hour: "2-digit",
-                                minute:
-                                  "2-digit",
-                              }
-                            )
-                          : "--"}
-                      </td>
-
-                      <td>
-                        {item.checkOut
-                          ? new Date(
-                              item.checkOut
-                            ).toLocaleTimeString(
-                              [],
-                              {
-                                hour: "2-digit",
-                                minute:
-                                  "2-digit",
-                              }
-                            )
-                          : "--"}
-                      </td>
-
-                      <td>
-                        {formatMinutes(
-                          item.workingMinutes
-                        )}
-                      </td>
-
-                      <td>
-                        <span className="status-badge">
-                          {item.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-
-            {!attendanceHistory.length && (
-              <div className="empty-state">
-                No attendance records
-                yet.
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
+      </section>
+    </div>
+  );
+};
 
 export default EmployeeDashboard;
