@@ -1,71 +1,100 @@
 const mongoose = require("mongoose");
 
-const employeeSchema = new mongoose.Schema(
+const leaveSchema = new mongoose.Schema(
   {
-    name: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-
-    email: {
-      type: String,
-      required: true,
-      unique: true,
-      lowercase: true,
-      trim: true,
-    },
-
-    password: {
-      type: String,
-      required: true,
-      minlength: 6,
-    },
-
     employeeId: {
-      type: String,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Employee",
       required: true,
-      unique: true,
-      trim: true,
+      index: true
     },
 
-    department: {
+    leaveType: {
       type: String,
-      required: true,
-      trim: true,
+      enum: [
+        "Casual Leave",
+        "Sick Leave",
+        "Annual Leave",
+        "Emergency Leave"
+      ],
+      required: true
     },
 
-    designation: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-
-    role: {
-      type: String,
-      enum: ["employee", "hr"],
-      default: "employee",
-    },
-
-    joiningDate: {
+    /*
+     * These are date-only values.
+     *
+     * We intentionally store them at UTC midnight
+     * and use date keys for attendance records.
+     */
+    startDate: {
       type: Date,
-      default: Date.now,
+      required: true
     },
 
-    leaveBalance: {
+    endDate: {
+      type: Date,
+      required: true
+    },
+
+    totalDays: {
       type: Number,
-      default: 18,
-      min: 0,
+      required: true,
+      min: 1
     },
 
-    isActive: {
-      type: Boolean,
-      default: true,
+    reason: {
+      type: String,
+      required: true,
+      trim: true,
+      minlength: 3,
+      maxlength: 500
     },
+
+    status: {
+      type: String,
+      enum: [
+        "Pending",
+        "Approved",
+        "Rejected"
+      ],
+      default: "Pending",
+      index: true
+    },
+
+    approvedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Employee",
+      default: null
+    },
+
+    approvedAt: {
+      type: Date,
+      default: null
+    },
+
+    rejectionReason: {
+      type: String,
+      trim: true,
+      maxlength: 500,
+      default: null
+    }
   },
   {
-    timestamps: true,
+    timestamps: true
   }
 );
 
-module.exports = mongoose.model("Employee", employeeSchema);
+leaveSchema.index({
+  employeeId: 1,
+  status: 1
+});
+
+leaveSchema.index({
+  startDate: 1,
+  endDate: 1
+});
+
+module.exports = mongoose.model(
+  "Leave",
+  leaveSchema
+);
