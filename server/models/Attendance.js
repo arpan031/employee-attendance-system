@@ -1,71 +1,95 @@
 const mongoose = require("mongoose");
 
-const employeeSchema = new mongoose.Schema(
+const attendanceSchema = new mongoose.Schema(
   {
-    name: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-
-    email: {
-      type: String,
-      required: true,
-      unique: true,
-      lowercase: true,
-      trim: true,
-    },
-
-    password: {
-      type: String,
-      required: true,
-      minlength: 6,
-    },
-
     employeeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Employee",
+      required: true,
+      index: true
+    },
+
+    /*
+     * Date is stored as a local date key:
+     *
+     * YYYY-MM-DD
+     *
+     * Example:
+     * 2026-09-02
+     *
+     * This prevents UTC date conversion problems.
+     */
+    date: {
       type: String,
       required: true,
-      unique: true,
-      trim: true,
+      match: /^\d{4}-\d{2}-\d{2}$/
     },
 
-    department: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-
-    designation: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-
-    role: {
-      type: String,
-      enum: ["employee", "hr"],
-      default: "employee",
-    },
-
-    joiningDate: {
+    checkIn: {
       type: Date,
-      default: Date.now,
+      default: null
     },
 
-    leaveBalance: {
+    checkOut: {
+      type: Date,
+      default: null
+    },
+
+    workingMinutes: {
       type: Number,
-      default: 18,
-      min: 0,
+      default: 0,
+      min: 0
     },
 
-    isActive: {
-      type: Boolean,
-      default: true,
+    overtimeMinutes: {
+      type: Number,
+      default: 0,
+      min: 0
     },
+
+    status: {
+      type: String,
+      enum: [
+        "Present",
+        "Absent",
+        "Late",
+        "Half Day",
+        "Leave"
+      ],
+      default: "Absent",
+      index: true
+    }
   },
   {
-    timestamps: true,
+    timestamps: true
   }
 );
 
-module.exports = mongoose.model("Employee", employeeSchema);
+/* Prevent duplicate attendance for one employee on one date */
+
+attendanceSchema.index(
+  {
+    employeeId: 1,
+    date: 1
+  },
+  {
+    unique: true
+  }
+);
+
+/* Common HR queries */
+
+attendanceSchema.index({
+  date: 1,
+  status: 1
+});
+
+attendanceSchema.index({
+  employeeId: 1,
+  date: -1
+});
+
+module.exports = mongoose.model(
+  "Attendance",
+  attendanceSchema
+);
