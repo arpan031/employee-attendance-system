@@ -1,51 +1,162 @@
+const {
+  getLocalTimeMinutes
+} = require("../utils/dateUtils");
+
+/*
+|--------------------------------------------------------------------------
+| Attendance Rules
+|--------------------------------------------------------------------------
+*/
+
+const OFFICE_START_MINUTES = 9 * 60; // 09:00
+
+const STANDARD_WORK_MINUTES = 8 * 60; // 8 hours
+
+const HALF_DAY_MINUTES = 4 * 60; // 4 hours
+
+/*
+|--------------------------------------------------------------------------
+| Calculate working minutes
+|--------------------------------------------------------------------------
+*/
+
 const calculateWorkingMinutes = (
   checkIn,
   checkOut
 ) => {
-  if (!checkIn || !checkOut) {
+  if (
+    !checkIn ||
+    !checkOut
+  ) {
+    return 0;
+  }
+
+  const start =
+    new Date(checkIn).getTime();
+
+  const end =
+    new Date(checkOut).getTime();
+
+  if (
+    Number.isNaN(start) ||
+    Number.isNaN(end) ||
+    end <= start
+  ) {
     return 0;
   }
 
   return Math.floor(
-    (new Date(checkOut) -
-      new Date(checkIn)) /
-      (1000 * 60)
+    (end - start) / 60000
   );
 };
 
-const calculateStatus = (checkIn) => {
-  const date = new Date(checkIn);
+/*
+|--------------------------------------------------------------------------
+| Calculate overtime
+|--------------------------------------------------------------------------
+*/
 
-  const hour = date.getHours();
-  const minute = date.getMinutes();
+const calculateOvertimeMinutes = (
+  workingMinutes
+) => {
+  return Math.max(
+    0,
+    workingMinutes -
+      STANDARD_WORK_MINUTES
+  );
+};
 
-  const totalMinutes =
-    hour * 60 + minute;
+/*
+|--------------------------------------------------------------------------
+| Calculate initial attendance status
+|--------------------------------------------------------------------------
+*/
 
-  const officeStart = 9 * 60;
-
-  if (totalMinutes <= officeStart) {
-    return "Present";
+const calculateStatus = (
+  checkIn
+) => {
+  if (!checkIn) {
+    return "Absent";
   }
 
-  if (totalMinutes <= officeStart + 30) {
+  const checkInMinutes =
+    getLocalTimeMinutes(checkIn);
+
+  if (
+    checkInMinutes >
+    OFFICE_START_MINUTES
+  ) {
     return "Late";
   }
 
-  return "Late";
+  return "Present";
 };
 
-const calculateOvertime = (workingMinutes) => {
-  const standardMinutes = 8 * 60;
+/*
+|--------------------------------------------------------------------------
+| Final status after checkout
+|--------------------------------------------------------------------------
+*/
 
-  return Math.max(
-    0,
-    workingMinutes - standardMinutes
-  );
+const finalizeStatus = ({
+  checkIn,
+  workingMinutes
+}) => {
+  if (!checkIn) {
+    return "Absent";
+  }
+
+  if (
+    workingMinutes < HALF_DAY_MINUTES
+  ) {
+    return "Half Day";
+  }
+
+  return calculateStatus(checkIn);
+};
+
+/*
+|--------------------------------------------------------------------------
+| Build attendance calculation
+|--------------------------------------------------------------------------
+*/
+
+const calculateAttendance = ({
+  checkIn,
+  checkOut
+}) => {
+  const workingMinutes =
+    calculateWorkingMinutes(
+      checkIn,
+      checkOut
+    );
+
+  const overtimeMinutes =
+    calculateOvertimeMinutes(
+      workingMinutes
+    );
+
+  const status = checkOut
+    ? finalizeStatus({
+        checkIn,
+        workingMinutes
+      })
+    : calculateStatus(checkIn);
+
+  return {
+    workingMinutes,
+    overtimeMinutes,
+    status
+  };
 };
 
 module.exports = {
+  OFFICE_START_MINUTES,
+  STANDARD_WORK_MINUTES,
+  HALF_DAY_MINUTES,
   calculateWorkingMinutes,
+  calculateOvertimeMinutes,
   calculateStatus,
-  calculateOvertime,
+  finalizeStatus,
+  calculateAttendance
 };
