@@ -1,9 +1,7 @@
-
 import { useEffect, useState } from "react";
 import {
   Check,
-  X,
-  Search,
+  X
 } from "lucide-react";
 
 import api from "../../services/api";
@@ -12,33 +10,27 @@ const LeaveRequests = () => {
   const [leaves, setLeaves] =
     useState([]);
 
-  const [search, setSearch] =
-    useState("");
-
-  const [status, setStatus] =
-    useState("All");
-
-  const [loading, setLoading] =
-    useState(true);
-
+  const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] =
     useState(null);
 
-  const [error, setError] =
-    useState("");
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
 
   const loadLeaves = async () => {
     try {
-      const response =
-        await api.get("/leaves");
+      setLoading(true);
+      setError("");
 
-      setLeaves(
-        response.data.leaves
+      const response = await api.get(
+        "/leaves/all"
       );
+
+      setLeaves(response.data.leaves || []);
     } catch (err) {
       setError(
         err.response?.data?.message ||
-          "Unable to load leave requests"
+          "Unable to load leave requests."
       );
     } finally {
       setLoading(false);
@@ -49,132 +41,117 @@ const LeaveRequests = () => {
     loadLeaves();
   }, []);
 
-  const updateLeave = async (
+  const handleAction = async (
     id,
     action
   ) => {
-    setActionLoading(id);
-    setError("");
+    let rejectionReason = "";
+
+    if (action === "reject") {
+      rejectionReason =
+        window.prompt(
+          "Enter rejection reason:"
+        ) || "";
+
+      if (!rejectionReason.trim()) {
+        return;
+      }
+    }
 
     try {
+      setActionLoading(id);
+      setError("");
+      setMessage("");
+
       await api.patch(
-        `/leaves/${id}/${action}`
+        `/leaves/${id}/${action}`,
+        action === "reject"
+          ? { rejectionReason }
+          : {}
+      );
+
+      setMessage(
+        action === "approve"
+          ? "Leave request approved."
+          : "Leave request rejected."
       );
 
       await loadLeaves();
     } catch (err) {
       setError(
         err.response?.data?.message ||
-          "Unable to update leave"
+          `Unable to ${action} leave request.`
       );
     } finally {
       setActionLoading(null);
     }
   };
 
-  const filteredLeaves =
-    leaves.filter((leave) => {
-      const employee =
-        leave.employeeId;
+  const formatDate = (date) => {
+    if (!date) return "-";
 
-      const value =
-        search.toLowerCase();
+    return new Date(date).toLocaleDateString(
+      "en-IN",
+      {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        timeZone: "UTC"
+      }
+    );
+  };
 
-      const matchesSearch =
-        employee?.name
-          ?.toLowerCase()
-          .includes(value) ||
-        employee?.employeeId
-          ?.toLowerCase()
-          .includes(value) ||
-        employee?.department
-          ?.toLowerCase()
-          .includes(value);
-
-      const matchesStatus =
-        status === "All" ||
-        leave.status === status;
-
-      return (
-        matchesSearch &&
-        matchesStatus
-      );
-    });
-
-  const statusClass = (value) =>
-    value
-      .toLowerCase()
-      .replace(" ", "-");
+  if (loading) {
+    return (
+      <div className="page-loader">
+        <div className="spinner" />
+        <p>Loading leave requests...</p>
+      </div>
+    );
+  }
 
   return (
-    <div>
-      <div className="page-heading">
+    <div className="page-container">
+      <div className="page-header">
         <div>
-          <h1>Leave Requests</h1>
+          <h2>Leave Requests</h2>
           <p>
-            Review and manage employee
-            leave applications.
+            Review and manage employee leave
+            applications.
           </p>
         </div>
       </div>
 
       {error && (
-        <div className="error-message">
+        <div className="alert alert-error">
           {error}
         </div>
       )}
 
-      <div className="panel">
-        <div className="filters">
-          <div className="search-box">
-            <Search size={18} />
-
-            <input
-              placeholder="Search employee..."
-              value={search}
-              onChange={(e) =>
-                setSearch(
-                  e.target.value
-                )
-              }
-            />
-          </div>
-
-          <select
-            value={status}
-            onChange={(e) =>
-              setStatus(
-                e.target.value
-              )
-            }
-          >
-            <option value="All">
-              All Requests
-            </option>
-
-            <option value="Pending">
-              Pending
-            </option>
-
-            <option value="Approved">
-              Approved
-            </option>
-
-            <option value="Rejected">
-              Rejected
-            </option>
-          </select>
+      {message && (
+        <div className="alert alert-success">
+          {message}
         </div>
-      </div>
+      )}
 
-      <div className="panel">
-        {loading ? (
+      <section className="card">
+        <div className="card-header">
+          <div>
+            <h3>All Leave Requests</h3>
+            <p>
+              Approve or reject pending
+              applications.
+            </p>
+          </div>
+        </div>
+
+        {leaves.length === 0 ? (
           <div className="empty-state">
-            Loading leave requests...
+            No leave requests found.
           </div>
         ) : (
-          <div className="table-container">
-            <table>
+          <div className="table-wrapper">
+            <table className="data-table">
               <thead>
                 <tr>
                   <th>Employee</th>
@@ -188,139 +165,116 @@ const LeaveRequests = () => {
               </thead>
 
               <tbody>
-                {filteredLeaves.map(
-                  (leave) => (
-                    <tr key={leave._id}>
-                      <td>
-                        <div className="employee-cell">
-                          <div className="table-avatar">
-                            {leave.employeeId?.name
-                              ?.charAt(
-                                0
-                              )
-                              .toUpperCase()}
-                          </div>
-
-                          <div>
-                            <strong>
-                              {
-                                leave
-                                  .employeeId
-                                  ?.name
-                              }
-                            </strong>
-
-                            <small>
-                              {
-                                leave
-                                  .employeeId
-                                  ?.employeeId
-                              }
-                            </small>
-                          </div>
+                {leaves.map((leave) => (
+                  <tr key={leave._id}>
+                    <td>
+                      <div className="employee-cell">
+                        <div className="avatar">
+                          {leave.employeeId?.name
+                            ?.charAt(0)
+                            .toUpperCase()}
                         </div>
-                      </td>
 
-                      <td>
-                        {leave.leaveType}
-                      </td>
+                        <div>
+                          <strong>
+                            {leave.employeeId?.name}
+                          </strong>
 
-                      <td>
-                        {new Date(
-                          leave.startDate
-                        ).toLocaleDateString(
-                          "en-IN"
-                        )}
-                        {" - "}
-                        {new Date(
-                          leave.endDate
-                        ).toLocaleDateString(
-                          "en-IN"
-                        )}
-                      </td>
-
-                      <td>
-                        {leave.totalDays}
-                      </td>
-
-                      <td>
-                        <div className="reason-cell">
-                          {leave.reason}
-                        </div>
-                      </td>
-
-                      <td>
-                        <span
-                          className={`status-badge ${statusClass(
-                            leave.status
-                          )}`}
-                        >
-                          {leave.status}
-                        </span>
-                      </td>
-
-                      <td>
-                        {leave.status ===
-                        "Pending" ? (
-                          <div className="action-group">
-                            <button
-                              className="approve-button"
-                              disabled={
-                                actionLoading ===
-                                leave._id
-                              }
-                              onClick={() =>
-                                updateLeave(
-                                  leave._id,
-                                  "approve"
-                                )
-                              }
-                            >
-                              <Check
-                                size={16}
-                              />
-                              Approve
-                            </button>
-
-                            <button
-                              className="reject-button"
-                              disabled={
-                                actionLoading ===
-                                leave._id
-                              }
-                              onClick={() =>
-                                updateLeave(
-                                  leave._id,
-                                  "reject"
-                                )
-                              }
-                            >
-                              <X
-                                size={16}
-                              />
-                              Reject
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="muted">
-                            Completed
+                          <span>
+                            {
+                              leave.employeeId
+                                ?.employeeId
+                            }
                           </span>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                )}
+                        </div>
+                      </div>
+                    </td>
+
+                    <td>{leave.leaveType}</td>
+
+                    <td>
+                      {formatDate(
+                        leave.startDate
+                      )}{" "}
+                      -{" "}
+                      {formatDate(
+                        leave.endDate
+                      )}
+                    </td>
+
+                    <td>{leave.totalDays}</td>
+
+                    <td>
+                      <span className="reason-text">
+                        {leave.reason}
+                      </span>
+                    </td>
+
+                    <td>
+                      <span
+                        className={`status-badge status-${leave.status.toLowerCase()}`}
+                      >
+                        {leave.status}
+                      </span>
+                    </td>
+
+                    <td>
+                      {leave.status ===
+                      "Pending" ? (
+                        <div className="action-group">
+                          <button
+                            type="button"
+                            className="table-action success"
+                            disabled={
+                              actionLoading ===
+                              leave._id
+                            }
+                            onClick={() =>
+                              handleAction(
+                                leave._id,
+                                "approve"
+                              )
+                            }
+                          >
+                            <Check size={16} />
+                            Approve
+                          </button>
+
+                          <button
+                            type="button"
+                            className="table-action danger"
+                            disabled={
+                              actionLoading ===
+                              leave._id
+                            }
+                            onClick={() =>
+                              handleAction(
+                                leave._id,
+                                "reject"
+                              )
+                            }
+                          >
+                            <X size={16} />
+                            Reject
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="muted">
+                          {leave.status ===
+                          "Approved"
+                            ? "Completed"
+                            : leave.rejectionReason ||
+                              "Rejected"}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
-
-            {!filteredLeaves.length && (
-              <div className="empty-state">
-                No leave requests found.
-              </div>
-            )}
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
 };
