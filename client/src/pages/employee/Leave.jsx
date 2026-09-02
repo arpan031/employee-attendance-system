@@ -1,43 +1,45 @@
 import { useEffect, useState } from "react";
 import {
   CalendarDays,
-  Plus,
-  X,
+  Plus
 } from "lucide-react";
 
 import api from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
 
 const Leave = () => {
-  const { employee } = useAuth();
+  const { employee, refreshUser } = useAuth();
 
   const [leaves, setLeaves] = useState([]);
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] =
+    useState(false);
 
   const [form, setForm] = useState({
     leaveType: "Casual Leave",
     startDate: "",
     endDate: "",
-    reason: "",
+    reason: ""
   });
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] =
     useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [message, setMessage] = useState("");
 
   const loadLeaves = async () => {
     try {
+      setLoading(true);
+
       const response = await api.get(
         "/leaves/my"
       );
 
-      setLeaves(response.data.leaves);
+      setLeaves(response.data.leaves || []);
     } catch (err) {
       setError(
         err.response?.data?.message ||
-          "Unable to load leaves"
+          "Unable to load leave requests."
       );
     } finally {
       setLoading(false);
@@ -48,91 +50,115 @@ const Leave = () => {
     loadLeaves();
   }, []);
 
-  const handleChange = (e) => {
-    setForm({
-      ...form,
-      [e.target.name]: e.target.value,
-    });
+  const handleChange = (event) => {
+    setForm((current) => ({
+      ...current,
+      [event.target.name]: event.target.value
+    }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
 
     setError("");
-    setSuccess("");
-    setSubmitting(true);
+    setMessage("");
+
+    if (
+      !form.startDate ||
+      !form.endDate ||
+      !form.reason.trim()
+    ) {
+      setError(
+        "Please complete all leave fields."
+      );
+      return;
+    }
+
+    if (form.endDate < form.startDate) {
+      setError(
+        "End date cannot be before start date."
+      );
+      return;
+    }
 
     try {
+      setSubmitting(true);
+
       await api.post("/leaves", form);
 
-      setSuccess(
-        "Leave application submitted successfully."
+      setMessage(
+        "Leave request submitted successfully."
       );
 
       setForm({
         leaveType: "Casual Leave",
         startDate: "",
         endDate: "",
-        reason: "",
+        reason: ""
       });
 
       setShowForm(false);
 
       await loadLeaves();
+      await refreshUser();
     } catch (err) {
       setError(
         err.response?.data?.message ||
-          "Unable to submit leave"
+          "Unable to submit leave request."
       );
     } finally {
       setSubmitting(false);
     }
   };
 
-  const getStatusClass = (status) => {
-    return status
-      .toLowerCase()
-      .replace(" ", "-");
+  const formatDate = (date) => {
+    if (!date) return "-";
+
+    return new Date(date).toLocaleDateString(
+      "en-IN",
+      {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        timeZone: "UTC"
+      }
+    );
   };
 
+  if (loading) {
+    return (
+      <div className="page-loader">
+        <div className="spinner" />
+        <p>Loading leave requests...</p>
+      </div>
+    );
+  }
+
   return (
-    <div>
-      <div className="page-heading">
+    <div className="page-container">
+      <div className="page-header">
         <div>
-          <h1>Leave Management</h1>
+          <h2>Leave Management</h2>
           <p>
             Apply for leave and track your requests.
           </p>
         </div>
 
         <button
-          className="primary-small-button"
-          onClick={() => {
-            setShowForm(true);
-            setError("");
-            setSuccess("");
-          }}
+          type="button"
+          className="primary-button"
+          onClick={() =>
+            setShowForm((current) => !current)
+          }
         >
           <Plus size={18} />
           Apply Leave
         </button>
       </div>
 
-      {error && (
-        <div className="error-message">
-          {error}
-        </div>
-      )}
-
-      {success && (
-        <div className="success-message">
-          {success}
-        </div>
-      )}
-
       <div className="leave-balance-card">
-        <div className="leave-balance-icon">
-          <CalendarDays size={26} />
+        <div className="large-icon">
+          <CalendarDays size={28} />
         </div>
 
         <div>
@@ -143,32 +169,41 @@ const Leave = () => {
         </div>
       </div>
 
+      {error && (
+        <div className="alert alert-error">
+          {error}
+        </div>
+      )}
+
+      {message && (
+        <div className="alert alert-success">
+          {message}
+        </div>
+      )}
+
       {showForm && (
-        <div className="modal-overlay">
-          <div className="modal">
-            <div className="modal-header">
-              <div>
-                <h2>Apply for Leave</h2>
-                <p>
-                  Submit a new leave request
-                </p>
-              </div>
-
-              <button
-                className="close-button"
-                onClick={() =>
-                  setShowForm(false)
-                }
-              >
-                <X size={20} />
-              </button>
+        <section className="card">
+          <div className="card-header">
+            <div>
+              <h3>Apply for Leave</h3>
+              <p>
+                Submit a new leave request.
+              </p>
             </div>
+          </div>
 
-            <form onSubmit={handleSubmit}>
+          <form
+            className="auth-form"
+            onSubmit={handleSubmit}
+          >
+            <div className="form-grid">
               <div className="form-group">
-                <label>Leave Type</label>
+                <label htmlFor="leaveType">
+                  Leave Type
+                </label>
 
                 <select
+                  id="leaveType"
                   name="leaveType"
                   value={form.leaveType}
                   onChange={handleChange}
@@ -188,100 +223,102 @@ const Leave = () => {
                 </select>
               </div>
 
-              <div className="form-row">
-                <div className="form-group">
-                  <label>
-                    Start Date
-                  </label>
-
-                  <input
-                    type="date"
-                    name="startDate"
-                    value={form.startDate}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>
-                    End Date
-                  </label>
-
-                  <input
-                    type="date"
-                    name="endDate"
-                    value={form.endDate}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
-              </div>
-
               <div className="form-group">
-                <label>Reason</label>
+                <label htmlFor="startDate">
+                  Start Date
+                </label>
 
-                <textarea
-                  name="reason"
-                  value={form.reason}
+                <input
+                  id="startDate"
+                  name="startDate"
+                  type="date"
+                  value={form.startDate}
                   onChange={handleChange}
-                  placeholder="Enter reason for leave..."
-                  rows="4"
-                  required
                 />
               </div>
 
-              <div className="modal-actions">
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() =>
-                    setShowForm(false)
-                  }
-                >
-                  Cancel
-                </button>
+              <div className="form-group">
+                <label htmlFor="endDate">
+                  End Date
+                </label>
 
-                <button
-                  type="submit"
-                  className="primary-small-button"
-                  disabled={submitting}
-                >
-                  {submitting
-                    ? "Submitting..."
-                    : "Submit Request"}
-                </button>
+                <input
+                  id="endDate"
+                  name="endDate"
+                  type="date"
+                  value={form.endDate}
+                  onChange={handleChange}
+                />
               </div>
-            </form>
-          </div>
-        </div>
+
+              <div className="form-group form-group-full">
+                <label htmlFor="reason">
+                  Reason
+                </label>
+
+                <textarea
+                  id="reason"
+                  name="reason"
+                  rows="4"
+                  maxLength="500"
+                  placeholder="Enter reason for leave..."
+                  value={form.reason}
+                  onChange={handleChange}
+                />
+              </div>
+            </div>
+
+            <div className="form-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() =>
+                  setShowForm(false)
+                }
+              >
+                Cancel
+              </button>
+
+              <button
+                type="submit"
+                className="primary-button"
+                disabled={submitting}
+              >
+                {submitting
+                  ? "Submitting..."
+                  : "Submit Request"}
+              </button>
+            </div>
+          </form>
+        </section>
       )}
 
-      <div className="panel">
-        <div className="panel-header">
+      <section className="card">
+        <div className="card-header">
           <div>
-            <h2>My Leave Requests</h2>
+            <h3>My Leave Requests</h3>
             <p>
-              Track the status of your applications.
+              View the status of your applications.
             </p>
           </div>
         </div>
 
-        {loading ? (
+        {leaves.length === 0 ? (
           <div className="empty-state">
-            Loading leaves...
+            You haven't submitted any leave
+            requests yet.
           </div>
         ) : (
-          <div className="table-container">
-            <table>
+          <div className="table-wrapper">
+            <table className="data-table">
               <thead>
                 <tr>
                   <th>Type</th>
-                  <th>Start Date</th>
-                  <th>End Date</th>
+                  <th>Dates</th>
                   <th>Days</th>
                   <th>Reason</th>
                   <th>Status</th>
+                  <th>Remarks</th>
                 </tr>
               </thead>
 
@@ -289,49 +326,50 @@ const Leave = () => {
                 {leaves.map((leave) => (
                   <tr key={leave._id}>
                     <td>{leave.leaveType}</td>
+
                     <td>
-                      {new Date(
+                      {formatDate(
                         leave.startDate
-                      ).toLocaleDateString(
-                        "en-IN"
-                      )}
-                    </td>
-                    <td>
-                      {new Date(
+                      )}{" "}
+                      -{" "}
+                      {formatDate(
                         leave.endDate
-                      ).toLocaleDateString(
-                        "en-IN"
                       )}
                     </td>
+
+                    <td>{leave.totalDays}</td>
+
                     <td>
-                      {leave.totalDays}
+                      <span className="reason-text">
+                        {leave.reason}
+                      </span>
                     </td>
-                    <td>
-                      {leave.reason}
-                    </td>
+
                     <td>
                       <span
-                        className={`status-badge ${getStatusClass(
-                          leave.status
-                        )}`}
+                        className={`status-badge status-${leave.status.toLowerCase()}`}
                       >
                         {leave.status}
                       </span>
+                    </td>
+
+                    <td>
+                      {leave.status ===
+                      "Rejected"
+                        ? leave.rejectionReason ||
+                          "-"
+                        : leave.status ===
+                          "Approved"
+                        ? "Approved"
+                        : "Awaiting HR review"}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-
-            {!leaves.length && (
-              <div className="empty-state">
-                You haven't submitted any leave
-                requests.
-              </div>
-            )}
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
 };
