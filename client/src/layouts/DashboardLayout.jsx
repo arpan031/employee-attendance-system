@@ -1,19 +1,24 @@
-import {
-  Outlet,
-} from "react-router-dom";
-
-import Sidebar from "../components/Sidebar";
+import { useState } from "react";
 import Navbar from "../components/Navbar";
+import Sidebar from "../components/Sidebar";
 
 const DashboardLayout = () => {
+  const [sidebarOpen, setSidebarOpen] =
+    useState(false);
+
   return (
-    <div className="dashboard-layout">
-      <Sidebar />
+    <div className="app-shell">
+      <Sidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
 
-      <div className="main-content">
-        <Navbar />
+      <div className="main-area">
+        <Navbar
+          onMenuClick={() => setSidebarOpen(true)}
+        />
 
-        <main className="page-content">
+        <main className="main-content">
           <Outlet />
         </main>
       </div>
