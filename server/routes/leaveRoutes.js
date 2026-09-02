@@ -1,31 +1,47 @@
 const express = require("express");
 
-const protect = require("../middleware/authMiddleware");
-const authorize = require("../middleware/roleMiddleware");
-
 const {
   applyLeave,
   getMyLeaves,
   getAllLeaves,
   approveLeave,
-  rejectLeave,
+  rejectLeave
 } = require("../controllers/leaveController");
+
+const protect = require("../middleware/authMiddleware");
+
+const authorize = require("../middleware/roleMiddleware");
+
+const validate = require("../middleware/validateMiddleware");
+
+const {
+  leaveValidator
+} = require("../validators/leaveValidator");
 
 const router = express.Router();
 
+/* All leave routes require authentication */
+
 router.use(protect);
 
-// Employee
-router.post("/", applyLeave);
+/* Employee Routes */
+
+router.post(
+  "/",
+  leaveValidator,
+  validate,
+  applyLeave
+);
 
 router.get(
   "/my",
   getMyLeaves
 );
 
-// HR
+/* HR Routes */
+
 router.get(
-  "/",
+  "/all",
   authorize("hr"),
   getAllLeaves
 );
