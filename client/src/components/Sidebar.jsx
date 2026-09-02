@@ -1,107 +1,133 @@
 import {
-  LayoutDashboard,
-  Clock3,
-  CalendarDays,
-  Users,
+  BarChart3,
+  CalendarCheck,
   ClipboardList,
+  Clock3,
+  LayoutDashboard,
+  Users,
+  X
 } from "lucide-react";
 
-import {
-  NavLink,
-} from "react-router-dom";
-
+import { NavLink } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
-const Sidebar = () => {
-  const {
-    employee,
-  } = useAuth();
+const Sidebar = ({ open, onClose }) => {
+  const { isHR } = useAuth();
 
   const employeeLinks = [
     {
-      name: "Dashboard",
-      path: "/dashboard",
-      icon: LayoutDashboard,
+      to: "/dashboard",
+      label: "Dashboard",
+      icon: LayoutDashboard
     },
     {
-      name: "Attendance",
-      path: "/attendance",
-      icon: Clock3,
+      to: "/attendance",
+      label: "Attendance",
+      icon: CalendarCheck
     },
     {
-      name: "Leave",
-      path: "/leave",
-      icon: CalendarDays,
-    },
+      to: "/leave",
+      label: "Leave",
+      icon: ClipboardList
+    }
   ];
 
   const hrLinks = [
     {
-      name: "Dashboard",
-      path: "/hr",
-      icon: LayoutDashboard,
+      to: "/hr",
+      label: "HR Dashboard",
+      icon: LayoutDashboard
     },
     {
-      name: "Employees",
-      path: "/hr/employees",
-      icon: Users,
+      to: "/hr/employees",
+      label: "Employees",
+      icon: Users
     },
     {
-      name: "Attendance",
-      path: "/hr/attendance",
-      icon: Clock3,
+      to: "/hr/attendance",
+      label: "Attendance",
+      icon: Clock3
     },
     {
-      name: "Leave Requests",
-      path: "/hr/leaves",
-      icon: ClipboardList,
+      to: "/hr/leaves",
+      label: "Leave Requests",
+      icon: ClipboardList
     },
+    {
+      to: "/hr/analytics",
+      label: "Analytics",
+      icon: BarChart3
+    }
   ];
 
-  const links =
-    employee?.role === "hr"
-      ? hrLinks
-      : employeeLinks;
+  const links = isHR ? hrLinks : employeeLinks;
 
   return (
-    <aside className="sidebar">
-      <div className="sidebar-brand">
-        <div className="brand-icon">
-          AE
+    <>
+      {open && (
+        <div
+          className="sidebar-overlay"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+      )}
+
+      <aside className={`sidebar ${open ? "sidebar-open" : ""}`}>
+        <div className="sidebar-header">
+          <div className="brand">
+            <div className="brand-icon">
+              <CalendarCheck size={24} />
+            </div>
+
+            <div>
+              <strong>AttendPro</strong>
+              <span>Management System</span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            className="icon-button sidebar-close"
+            onClick={onClose}
+            aria-label="Close menu"
+          >
+            <X size={20} />
+          </button>
         </div>
 
-        <span>
-          AttendEase
-        </span>
-      </div>
+        <nav className="sidebar-nav">
+          <p className="sidebar-section-title">
+            {isHR ? "HR Management" : "Employee"}
+          </p>
 
-      <nav>
-        {links.map((link) => {
-          const Icon =
-            link.icon;
+          {links.map((link) => {
+            const Icon = link.icon;
 
-          return (
-            <NavLink
-              key={link.path}
-              to={link.path}
-              className={({ isActive }) =>
-                `nav-item ${
-                  isActive
-                    ? "active"
-                    : ""
-                }`
-              }
-            >
-              <Icon size={20} />
+            return (
+              <NavLink
+                key={link.to}
+                to={link.to}
+                end={link.to === "/dashboard" || link.to === "/hr"}
+                className={({ isActive }) =>
+                  `sidebar-link ${
+                    isActive ? "active" : ""
+                  }`
+                }
+                onClick={onClose}
+              >
+                <Icon size={19} />
+                <span>{link.label}</span>
+              </NavLink>
+            );
+          })}
+        </nav>
 
-              <span>
-                {link.name}
-              </span>
-            </NavLink>
-          );
-        })}
-      </nav>
-    </aside>
+        <div className="sidebar-footer">
+          <p>Employee Attendance System</p>
+          <span>v1.0.0</span>
+        </div>
+      </aside>
+    </>
   );
 };
 
