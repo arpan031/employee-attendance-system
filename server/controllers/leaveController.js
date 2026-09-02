@@ -196,9 +196,30 @@ const approveLeave = async (req, res) => {
     }
 
     // Deduct leave only when approved
-    employee.leaveBalance -= leave.totalDays;
+    const updatedEmployee =
+  await Employee.findOneAndUpdate(
+    {
+      _id: leave.employeeId,
+      leaveBalance: {
+        $gte: leave.totalDays,
+      },
+    },
+    {
+      $inc: {
+        leaveBalance: -leave.totalDays,
+      },
+    },
+    {
+      new: true,
+    }
+  );
 
-    await employee.save();
+if (!updatedEmployee) {
+  return res.status(400).json({
+    message:
+      "Employee does not have enough leave balance",
+  });
+}
 
     leave.status = "Approved";
     leave.approvedBy = req.employee._id;
