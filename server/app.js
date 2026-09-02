@@ -1,49 +1,95 @@
 const express = require("express");
-const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
+const cors = require("cors");
+
+const corsOptions = require("./config/cors");
 
 const authRoutes = require("./routes/authRoutes");
 const attendanceRoutes = require("./routes/attendanceRoutes");
-
 const leaveRoutes = require("./routes/leaveRoutes");
 const hrRoutes = require("./routes/hrRoutes");
 
+const {
+  notFound,
+  errorHandler
+} = require("./middleware/errorMiddleware");
+
 const app = express();
 
-app.use(helmet());
+/*
+|--------------------------------------------------------------------------
+| Security
+|--------------------------------------------------------------------------
+*/
+
+app.disable("x-powered-by");
+
+app.set("trust proxy", 1);
 
 app.use(
-  cors({
-    origin: process.env.CLIENT_URL,
-    credentials: true,
+  helmet({
+    crossOriginResourcePolicy: {
+      policy: "cross-origin"
+    }
   })
 );
 
-app.use(express.json());
+app.use(cors(corsOptions));
 
-const limiter = rateLimit({
+/*
+|--------------------------------------------------------------------------
+| Body Parser
+|--------------------------------------------------------------------------
+*/
+
+app.use(
+  express.json({
+    limit: "100kb"
+  })
+);
+
+/*
+|--------------------------------------------------------------------------
+| Rate Limiting
+|--------------------------------------------------------------------------
+*/
+
+const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 300,
+
+  standardHeaders: true,
+  legacyHeaders: false,
+
   message: {
-    message: "Too many requests",
-  },
+    success: false,
+    message: "Too many requests. Please try again later."
+  }
 });
 
-app.use("/api", limiter);
+app.use("/api", apiLimiter);
 
-app.get("/api/health", (req, res) => {
-  res.json({
-    status: "OK",
-    message:
-      "Employee Attendance API is running",
+/*
+|--------------------------------------------------------------------------
+| Health Check
+|--------------------------------------------------------------------------
+*/
+
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "Employee Attendance API is running",
+    environment: process.env.NODE_ENV || "development",
+    timestamp: new Date().toISOString()
   });
 });
 
-app.use(
-  "/api/auth",
-  authRoutes
-);
+/*
+API Routes
+*/
+
+app.use("/api/auth", authRoutes);
 
 app.use(
   "/api/attendance",
@@ -60,20 +106,12 @@ app.use(
   hrRoutes
 );
 
-app.use((req, res) => {
-  res.status(404).json({
-    message: "Route not found",
-  });
-});
+/*
+Error Handling 
+*/
 
-app.use(
-  (error, req, res, next) => {
-    console.error(error);
+app.use(notFound);
 
-    res.status(500).json({
-      message: "Internal server error",
-    });
-  }
-);
+app.use(errorHandler);
 
 module.exports = app;
