@@ -2,124 +2,232 @@ import {
   createContext,
   useContext,
   useEffect,
-  useState,
+  useMemo,
+  useState
 } from "react";
 
 import api from "../services/api";
 
-const AuthContext = createContext(null);
+const AuthContext =
+  createContext(null);
+
+const TOKEN_KEY =
+  "attendance_token";
+
+const EMPLOYEE_KEY =
+  "attendance_employee";
 
 export const AuthProvider = ({
-  children,
+  children
 }) => {
-  const [employee, setEmployee] =
-    useState(null);
-
-  const [loading, setLoading] =
-    useState(true);
-
-  useEffect(() => {
-    const storedEmployee =
-      localStorage.getItem("employee");
-
-    const token =
-      localStorage.getItem("token");
-
-    if (storedEmployee && token) {
-      try {
-        setEmployee(
-          JSON.parse(storedEmployee)
+  const [
+    employee,
+    setEmployee
+  ] = useState(() => {
+    try {
+      const stored =
+        localStorage.getItem(
+          EMPLOYEE_KEY
         );
-      } catch {
-        localStorage.clear();
-      }
+
+      return stored
+        ? JSON.parse(stored)
+        : null;
+    } catch {
+      return null;
     }
+  });
 
-    setLoading(false);
-  }, []);
+  const [
+    loading,
+    setLoading
+  ] = useState(true);
 
-  const login = async (
-    email,
-    password
+  /* Save authentication */
+
+  const saveAuth = (
+    token,
+    employeeData
   ) => {
-    const response = await api.post(
-      "/auth/login",
-      {
-        email,
-        password,
-      }
-    );
-
-    const {
-      token,
-      employee,
-    } = response.data;
-
     localStorage.setItem(
-      "token",
+      TOKEN_KEY,
       token
     );
 
     localStorage.setItem(
-      "employee",
-      JSON.stringify(employee)
+      EMPLOYEE_KEY,
+      JSON.stringify(
+        employeeData
+      )
     );
 
-    setEmployee(employee);
-
-    return employee;
+    setEmployee(
+      employeeData
+    );
   };
 
-  const register = async (data) => {
-    const response = await api.post(
-      "/auth/register",
-      data
+  /* Clear authentication */
+
+  const clearAuth = () => {
+    localStorage.removeItem(
+      TOKEN_KEY
     );
 
-    const {
-      token,
-      employee,
-    } = response.data;
-
-    localStorage.setItem(
-      "token",
-      token
+    localStorage.removeItem(
+      EMPLOYEE_KEY
     );
-
-    localStorage.setItem(
-      "employee",
-      JSON.stringify(employee)
-    );
-
-    setEmployee(employee);
-
-    return employee;
-  };
-
-  const logout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("employee");
 
     setEmployee(null);
-
-    window.location.href = "/login";
   };
 
-  return (
-    <AuthContext.Provider
-      value={{
+  /* Login */
+
+  const login = async (
+    credentials
+  ) => {
+    const response =
+      await api.post(
+        "/auth/login",
+        credentials
+      );
+
+    const {
+      token,
+      employee:
+        employeeData
+    } = response.data;
+
+    saveAuth(
+      token,
+      employeeData
+    );
+
+    return response.data;
+  };
+
+  /* Register */
+
+  const register = async (
+    employeeData
+  ) => {
+    const response =
+      await api.post(
+        "/auth/register",
+        employeeData
+      );
+
+    const {
+      token,
+      employee:
+        createdEmployee
+    } = response.data;
+
+    saveAuth(
+      token,
+      createdEmployee
+    );
+
+    return response.data;
+  };
+
+  /* Logout  */
+
+  const logout = () => {
+    clearAuth();
+  };
+
+  /* Refresh current user  */
+
+  const refreshUser = async () => {
+    try {
+      const token =
+        localStorage.getItem(
+          TOKEN_KEY
+        );
+
+      if (!token) {
+        setLoading(false);
+        return null;
+      }
+
+      const response =
+        await api.get(
+          "/auth/me"
+        );
+
+      const employeeData =
+        response.data.employee;
+
+      localStorage.setItem(
+        EMPLOYEE_KEY,
+        JSON.stringify(
+          employeeData
+        )
+      );
+
+      setEmployee(
+        employeeData
+      );
+
+      return employeeData;
+    } catch {
+      clearAuth();
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* Initial authentication check  */
+
+  useEffect(() => {
+    refreshUser();
+  }, []);
+
+  /* Context value  */
+
+  const value =
+    useMemo(
+      () => ({
         employee,
         loading,
+        isAuthenticated:
+          Boolean(employee),
+
+        isHR:
+          employee?.role === "hr",
+
         login,
         register,
         logout,
-        isAuthenticated: !!employee,
-      }}
+        refreshUser
+      }),
+      [
+        employee,
+        loading
+      ]
+    );
+
+  return (
+    <AuthContext.Provider
+      value={value}
     >
       {children}
     </AuthContext.Provider>
   );
 };
 
-export const useAuth = () =>
-  useContext(AuthContext);
+export const useAuth = () => {
+  const context =
+    useContext(
+      AuthContext
+    );
+
+  if (!context) {
+    throw new Error(
+      "useAuth must be used inside AuthProvider"
+    );
+  }
+
+  return context;
+};
