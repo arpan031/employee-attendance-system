@@ -1,145 +1,75 @@
-const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 const Employee = require("../models/Employee");
-const generateToken = require("../utils/generateToken");
 
-const register = async (req, res) => {
+const protect = async (req, res, next) => {
   try {
-    const {
-      name,
-      email,
-      password,
-      employeeId,
-      department,
-      designation,
-    } = req.body;
+    const authHeader = req.headers.authorization;
 
     if (
-      !name ||
-      !email ||
-      !password ||
-      !employeeId ||
-      !department ||
-      !designation
+      !authHeader ||
+      !authHeader.startsWith("Bearer ")
     ) {
-      return res.status(400).json({
-        message: "All fields are required",
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required"
       });
     }
 
-    const existingEmployee = await Employee.findOne({
-      $or: [
-        { email: email.toLowerCase() },
-        { employeeId },
-      ],
-    });
+    const token = authHeader.split(" ")[1];
 
-    if (existingEmployee) {
-      return res.status(409).json({
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication token missing"
+      });
+    }
+
+    if (!process.env.JWT_SECRET) {
+      throw new Error("JWT_SECRET is not configured");
+    }
+
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET
+    );
+
+    const employee = await Employee.findById(
+      decoded.id
+    );
+
+    if (!employee) {
+      return res.status(401).json({
+        success: false,
+        message: "Employee account not found"
+      });
+    }
+
+    if (!employee.isActive) {
+      return res.status(403).json({
+        success: false,
+        message: "Employee account is inactive"
+      });
+    }
+
+    req.employee = employee;
+
+    next();
+  } catch (error) {
+    if (
+      error.name === "JsonWebTokenError" ||
+      error.name === "TokenExpiredError"
+    ) {
+      return res.status(401).json({
+        success: false,
         message:
-          "Email or employee ID already exists",
+          error.name === "TokenExpiredError"
+            ? "Authentication token has expired"
+            : "Invalid authentication token"
       });
     }
 
-    const hashedPassword = await bcrypt.hash(
-      password,
-      12
-    );
-
-    const employee = await Employee.create({
-      name,
-      email,
-      password: hashedPassword,
-      employeeId,
-      department,
-      designation,
-    });
-
-    const token = generateToken(employee);
-
-    res.status(201).json({
-      message: "Registration successful",
-
-      token,
-
-      employee: {
-        id: employee._id,
-        name: employee.name,
-        email: employee.email,
-        employeeId: employee.employeeId,
-        department: employee.department,
-        designation: employee.designation,
-        role: employee.role,
-        leaveBalance: employee.leaveBalance,
-      },
-    });
-  } catch (error) {
-    console.error(error);
-
-    res.status(500).json({
-      message: "Registration failed",
-    });
+    next(error);
   }
 };
 
-const login = async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({
-        message: "Email and password are required",
-      });
-    }
-
-    const employee = await Employee.findOne({
-      email: email.toLowerCase(),
-    });
-
-    if (!employee || !employee.isActive) {
-      return res.status(401).json({
-        message: "Invalid credentials",
-      });
-    }
-
-    const passwordMatched = await bcrypt.compare(
-      password,
-      employee.password
-    );
-
-    if (!passwordMatched) {
-      return res.status(401).json({
-        message: "Invalid credentials",
-      });
-    }
-
-    const token = generateToken(employee);
-
-    res.json({
-      message: "Login successful",
-
-      token,
-
-      employee: {
-        id: employee._id,
-        name: employee.name,
-        email: employee.email,
-        employeeId: employee.employeeId,
-        department: employee.department,
-        designation: employee.designation,
-        role: employee.role,
-        leaveBalance: employee.leaveBalance,
-      },
-    });
-  } catch (error) {
-    console.error(error);
-
-    res.status(500).json({
-      message: "Login failed",
-    });
-  }
-};
-
-module.exports = {
-  register,
-  login,
-};
+module.exports = protect;
