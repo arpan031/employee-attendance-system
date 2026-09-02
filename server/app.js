@@ -17,11 +17,7 @@ const {
 
 const app = express();
 
-/*
-|--------------------------------------------------------------------------
-| Security
-|--------------------------------------------------------------------------
-*/
+/* Security */
 
 app.disable("x-powered-by");
 
@@ -37,11 +33,7 @@ app.use(
 
 app.use(cors(corsOptions));
 
-/*
-|--------------------------------------------------------------------------
-| Body Parser
-|--------------------------------------------------------------------------
-*/
+/* Body Parser */
 
 app.use(
   express.json({
@@ -49,11 +41,7 @@ app.use(
   })
 );
 
-/*
-|--------------------------------------------------------------------------
-| Rate Limiting
-|--------------------------------------------------------------------------
-*/
+/* Rate Limiting */
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -70,11 +58,7 @@ const apiLimiter = rateLimit({
 
 app.use("/api", apiLimiter);
 
-/*
-|--------------------------------------------------------------------------
-| Health Check
-|--------------------------------------------------------------------------
-*/
+/* Health Check */
 
 app.get("/health", (req, res) => {
   res.status(200).json({
@@ -85,9 +69,7 @@ app.get("/health", (req, res) => {
   });
 });
 
-/*
-API Routes
-*/
+/* API Routes */
 
 app.use("/api/auth", authRoutes);
 
@@ -106,9 +88,7 @@ app.use(
   hrRoutes
 );
 
-/*
-Error Handling 
-*/
+/* Error Handling  */
 
 app.use(notFound);
 
