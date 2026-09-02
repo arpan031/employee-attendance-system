@@ -1,47 +1,41 @@
-const mongoose = require("mongoose");
-const {
-  MongoMemoryServer
-} = require("mongodb-memory-server");
+require("dotenv").config({
+  path: require("path").resolve(__dirname, "../.env")
+});
 
-let mongoServer;
+const mongoose = require("mongoose");
+
+jest.setTimeout(30000);
 
 beforeAll(async () => {
   process.env.NODE_ENV = "test";
 
-  process.env.JWT_SECRET =
-    "test-secret-key";
+  process.env.JWT_SECRET = "test-secret-key";
+  process.env.APP_TIMEZONE = "Asia/Kolkata";
 
-  process.env.APP_TIMEZONE =
-    "Asia/Kolkata";
+  const mongoUri = process.env.TEST_MONGODB_URI;
 
-  mongoServer =
-    await MongoMemoryServer.create();
+  if (!mongoUri) {
+    throw new Error(
+      "TEST_MONGODB_URI is not configured in server/.env"
+    );
+  }
 
-  const uri =
-    mongoServer.getUri();
+  await mongoose.connect(mongoUri);
 
-  await mongoose.connect(uri);
-});
+  console.log("Test MongoDB connected");
+}, 30000);
 
 afterEach(async () => {
-  const collections =
-    mongoose.connection.collections;
+  const collections = mongoose.connection.collections;
 
-  for (
-    const key of Object.keys(collections)
-  ) {
-    await collections[
-      key
-    ].deleteMany({});
+  for (const key of Object.keys(collections)) {
+    await collections[key].deleteMany({});
   }
 });
 
 afterAll(async () => {
-  await mongoose.connection.dropDatabase();
-
-  await mongoose.connection.close();
-
-  if (mongoServer) {
-    await mongoServer.stop();
+  if (mongoose.connection.readyState !== 0) {
+    await mongoose.connection.dropDatabase();
+    await mongoose.connection.close();
   }
 });
