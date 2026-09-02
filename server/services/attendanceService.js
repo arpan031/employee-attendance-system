@@ -2,11 +2,7 @@ const {
   getLocalTimeMinutes
 } = require("../utils/dateUtils");
 
-/*
-|--------------------------------------------------------------------------
-| Attendance Rules
-|--------------------------------------------------------------------------
-*/
+/* Attendance Rules */
 
 const OFFICE_START_MINUTES = 9 * 60; // 09:00
 
@@ -14,11 +10,7 @@ const STANDARD_WORK_MINUTES = 8 * 60; // 8 hours
 
 const HALF_DAY_MINUTES = 4 * 60; // 4 hours
 
-/*
-|--------------------------------------------------------------------------
-| Calculate working minutes
-|--------------------------------------------------------------------------
-*/
+/* Calculate working minutes */
 
 const calculateWorkingMinutes = (
   checkIn,
@@ -50,11 +42,7 @@ const calculateWorkingMinutes = (
   );
 };
 
-/*
-|--------------------------------------------------------------------------
-| Calculate overtime
-|--------------------------------------------------------------------------
-*/
+/* Calculate overtime */
 
 const calculateOvertimeMinutes = (
   workingMinutes
@@ -66,11 +54,7 @@ const calculateOvertimeMinutes = (
   );
 };
 
-/*
-|--------------------------------------------------------------------------
-| Calculate initial attendance status
-|--------------------------------------------------------------------------
-*/
+/* Calculate initial attendance status */
 
 const calculateStatus = (
   checkIn
@@ -92,11 +76,7 @@ const calculateStatus = (
   return "Present";
 };
 
-/*
-|--------------------------------------------------------------------------
-| Final status after checkout
-|--------------------------------------------------------------------------
-*/
+/* Final status after checkout */
 
 const finalizeStatus = ({
   checkIn,
@@ -115,11 +95,7 @@ const finalizeStatus = ({
   return calculateStatus(checkIn);
 };
 
-/*
-|--------------------------------------------------------------------------
-| Build attendance calculation
-|--------------------------------------------------------------------------
-*/
+/* Build attendance calculation */
 
 const calculateAttendance = ({
   checkIn,
