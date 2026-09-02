@@ -19,6 +19,10 @@ import Register from "./pages/Register";
 import EmployeeDashboard from "./pages/employee/EmployeeDashboard";
 import HRDashboard from "./pages/hr/HRDashboard";
 
+import Employees from "./pages/hr/Employees";
+import AttendanceManagement from "./pages/hr/AttendanceManagement";
+import LeaveRequests from "./pages/hr/LeaveRequests";
+
 import Attendance from "./pages/employee/Attendance";
 import Leave from "./pages/employee/Leave";
 
@@ -60,24 +64,37 @@ const App = () => {
               }
             />
               <Route
-                path="/hr"
-                element={
-                  <ProtectedRoute
-                    allowedRoles={[
-                      "hr",
-                    ]}
-                  />
-                }
-              />
-                <Route
-                  index
-                  element={
-                    <HRDashboard />
-                  }
-                />
-              </Route>
-            </Route>
-          </Route>
+  path="/hr"
+  element={
+    <ProtectedRoute
+      allowedRoles={["hr"]}
+    />
+  }
+>
+  <Route
+    index
+    element={<HRDashboard />}
+  />
+
+  <Route
+    path="employees"
+    element={<Employees />}
+  />
+
+  <Route
+    path="attendance"
+    element={
+      <AttendanceManagement />
+    }
+  />
+
+  <Route
+    path="leaves"
+    element={
+      <LeaveRequests />
+    }
+  />
+</Route>
 
           <Route
             path="/"
