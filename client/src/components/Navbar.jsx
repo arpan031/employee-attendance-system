@@ -1,108 +1,53 @@
-import {
-  LayoutDashboard,
-  Clock3,
-  CalendarDays,
-  Users,
-  ClipboardList,
-} from "lucide-react";
-
-import {
-  NavLink,
-} from "react-router-dom";
-
+import { Menu, LogOut, UserCircle } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
-const Sidebar = () => {
-  const {
-    employee,
-  } = useAuth();
-
-  const employeeLinks = [
-    {
-      name: "Dashboard",
-      path: "/dashboard",
-      icon: LayoutDashboard,
-    },
-    {
-      name: "Attendance",
-      path: "/attendance",
-      icon: Clock3,
-    },
-    {
-      name: "Leave",
-      path: "/leave",
-      icon: CalendarDays,
-    },
-  ];
-
-  const hrLinks = [
-    {
-      name: "Dashboard",
-      path: "/hr",
-      icon: LayoutDashboard,
-    },
-    {
-      name: "Employees",
-      path: "/hr/employees",
-      icon: Users,
-    },
-    {
-      name: "Attendance",
-      path: "/hr/attendance",
-      icon: Clock3,
-    },
-    {
-      name: "Leave Requests",
-      path: "/hr/leaves",
-      icon: ClipboardList,
-    },
-  ];
-
-  const links =
-    employee?.role === "hr"
-      ? hrLinks
-      : employeeLinks;
+const Navbar = ({ onMenuClick }) => {
+  const { employee, logout } = useAuth();
 
   return (
-    <aside className="sidebar">
-      <div className="sidebar-brand">
-        <div className="brand-icon">
-          AE
-        </div>
+    <header className="navbar">
+      <div className="navbar-left">
+        <button
+          type="button"
+          className="icon-button mobile-menu-button"
+          onClick={onMenuClick}
+          aria-label="Open menu"
+        >
+          <Menu size={22} />
+        </button>
 
-        <span>
-          AttendEase
-        </span>
+        <div>
+          <h1 className="navbar-title">
+            Attendance Management
+          </h1>
+          <p className="navbar-subtitle">
+            {employee?.role === "hr"
+              ? "HR Management Portal"
+              : "Employee Portal"}
+          </p>
+        </div>
       </div>
 
-      <nav>
-        {links.map((link) => {
-          const Icon =
-            link.icon;
+      <div className="navbar-right">
+        <div className="navbar-user">
+          <UserCircle size={28} />
+          <div className="navbar-user-info">
+            <strong>{employee?.name}</strong>
+            <span>{employee?.employeeId}</span>
+          </div>
+        </div>
 
-          return (
-            <NavLink
-              key={link.path}
-              to={link.path}
-              className={({ isActive }) =>
-                `nav-item ${
-                  isActive
-                    ? "active"
-                    : ""
-                }`
-              }
-            >
-              <Icon size={20} />
-
-              <span>
-                {link.name}
-              </span>
-            </NavLink>
-          );
-        })}
-      </nav>
-    </aside>
+        <button
+          type="button"
+          className="logout-button"
+          onClick={logout}
+        >
+          <LogOut size={18} />
+          <span>Logout</span>
+        </button>
+      </div>
+    </header>
   );
 };
 
-export default Sidebar;
+export default Navbar;
