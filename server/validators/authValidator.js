@@ -3,11 +3,7 @@ const {
   body
 } = require("express-validator");
 
-/*
-|--------------------------------------------------------------------------
-| Registration Validation
-|--------------------------------------------------------------------------
-*/
+/* Validation */
 
 const registerValidator = [
   body("name")
@@ -79,11 +75,7 @@ const registerValidator = [
     )
 ];
 
-/*
-|--------------------------------------------------------------------------
-| Login Validation
-|--------------------------------------------------------------------------
-*/
+/* Login Validation */
 
 const loginValidator = [
   body("email")
